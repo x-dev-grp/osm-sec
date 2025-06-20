@@ -1,70 +1,70 @@
 server:
-  port: 8088
+  port: ${SERVER_PORT:8088}
+
 eureka:
   client:
     service-url:
-      defaultZone: http://localhost:8761/eureka/
+      defaultZone: ${EUREKA_DEFAULT_ZONE:http://localhost:8761/eureka/}
   instance:
     prefer-ip-address: true
-    hostname: localhost
+    hostname: ${HOSTNAME:localhost}
+
 spring:
   application:
-    name: security-service
+    name: ${SPRING_APP_NAME:security-service}
+
   security:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: http://localhost:8088
-          jwk-set-uri: http://localhost:8088/oauth2/jwks
+          issuer-uri: ${JWT_ISSUER_URI:http://localhost:8088}
+          jwk-set-uri: ${JWK_SET_URI:http://localhost:8088/oauth2/jwks}
+
   datasource:
-    url: jdbc:postgresql://localhost:5432/osmSecurity
-    username: postgres
-    password: root
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/osmSecurity}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASS:root}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: ${HIBERNATE_DDL_AUTO:update}
+    show-sql: ${SHOW_SQL:true}
     database-platform: org.hibernate.dialect.PostgreSQLDialect
   sql:
     init:
-      mode: never
+      mode: ${SQL_INIT_MODE:never}
 
   data:
     jdbc:
       dialect: postgresql
   mail:
-    host: smtp.gmail.com
-    port: 587
-    username: xdevgroupe@gmail.com
-    password: aqxe aofi yxzn qrvy
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USER:xdevgroupe@gmail.com}
+    password: ${MAIL_PASS:changeme}
     protocol: smtp
     default-encoding: UTF-8
     properties:
       mail:
         smtp:
-          auth: true
+          auth: ${MAIL_SMTP_AUTH:true}
           starttls:
-            enable: true
-          timeout: 5000
-          connectiontimeout: 5000
+            enable: ${MAIL_STARTTLS:true}
+          timeout: ${MAIL_TIMEOUT:5000}
+          connectiontimeout: ${MAIL_CONN_TIMEOUT:5000}
       default-encoding: UTF-8
       messages:
-        cache-duration: PT1S # 1 second in ISO 8601
-
-
-
-
+        cache-duration: PT1S   # 1 second
 
 oauth2:
   client:
-    id: osm-client
-    secret: X7kP9mN2vQ8rT4wY6zA1bC3dE5fG8hJ9
+    id: ${OAUTH_CLIENT_ID:osm-client}
+    secret: ${OAUTH_CLIENT_SECRET:super-secret}
 
 logging:
   level:
-    org.springframework.security: TRACE
-    org.springframework.security.oauth2: DEBUG
+    org.springframework.security: ${LOG_SEC_LEVEL:TRACE}
+    org.springframework.security.oauth2: ${LOG_OAUTH2_LEVEL:DEBUG}
 
 springdoc:
   api-docs:
