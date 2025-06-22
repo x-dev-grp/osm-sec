@@ -14,9 +14,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
-import org.springframework.security.config.annotation.method.configuration.EnableReactiveMethodSecurity;
-import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
-import org.springframework.security.config.web.server.ServerHttpSecurity;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -27,8 +27,7 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.authorization.token.*;
-import org.springframework.security.web.server.SecurityWebFilterChain;
-import reactor.core.publisher.Mono;
+import org.springframework.security.web.SecurityFilterChain;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -45,8 +44,8 @@ import java.util.UUID;
  *   break browsers.
  */
 @Configuration
-@EnableWebFluxSecurity
-@EnableReactiveMethodSecurity
+@EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
 
     private final ModelMapper modelMapper;
@@ -135,14 +134,15 @@ public class SecurityConfig {
     }
 
     /* ---------------------------------------------------------------------
-     *  🛡  SecurityWebFilterChain – CORS is disabled here; Gateway adds headers
+     *  🛡  SecurityFilterChain – CORS is disabled here; Gateway adds headers
      * ------------------------------------------------------------------- */
     @Bean
-    public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
-                .cors(ServerHttpSecurity.CorsSpec::disable)   // 👈 disable CORS here
-                .csrf(ServerHttpSecurity.CsrfSpec::disable)
-                .authorizeExchange(ex -> ex.anyExchange().permitAll())
+                .securityMatcher("/api/**", "/actuator/**")  // Only handle specific API paths
+                .cors(cors -> cors.disable())   // disable CORS here
+                .csrf(csrf -> csrf.disable())
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
                 .build();
     }
 }

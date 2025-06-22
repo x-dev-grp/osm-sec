@@ -8,11 +8,13 @@ import com.osm.securityservice.userManagement.service.PermissionService;
 import com.osm.securityservice.userManagement.service.RoleService;
 import com.osm.securityservice.userManagement.service.UserService;
 import com.xdev.xdevbase.models.OSMModule;
+import com.xdev.xdevsecurity.config.CorsConfig;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.envers.repository.support.EnversRevisionRepositoryFactoryBean;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -22,6 +24,7 @@ import java.util.Set;
 @SpringBootApplication
 @ComponentScan(basePackages = {"com.xdev", "com.xdev.xdevbase", "com.osm.securityservice"})
 @EnableJpaRepositories(basePackages = {"com.xdev", "com.xdev.xdevbase", "com.osm.securityservice"}, repositoryFactoryBeanClass = EnversRevisionRepositoryFactoryBean.class)
+@Import({CorsConfig.class})
 public class SecurityserviceApplication {
     private final UserService userService;
     private final RoleService roleService;

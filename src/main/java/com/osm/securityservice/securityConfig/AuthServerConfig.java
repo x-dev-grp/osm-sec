@@ -67,6 +67,7 @@ public class AuthServerConfig {
         OAuth2AuthorizationServerConfigurer authorizationServerConfigurer = getOAuth2AuthorizationServerConfigurer();
 
         http
+                .securityMatcher("/oauth2/**", "/jwks", "/.well-known/**", "/api/security/**")
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(authenticationEntryPoint))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
