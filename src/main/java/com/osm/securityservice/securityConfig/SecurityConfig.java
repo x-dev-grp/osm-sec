@@ -14,6 +14,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableReactiveMethodSecurity;
+import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
+import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -24,20 +27,30 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.authorization.token.*;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.security.web.server.SecurityWebFilterChain;
+import reactor.core.publisher.Mono;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
-import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Security configuration for the stand‑alone security‑service.
+ * <p>
+ * ─ CORS is <strong>disabled</strong> here – the API Gateway is the single point that adds
+ *   <code>Access‑Control‑Allow‑Origin</code> headers. This prevents duplicate headers that
+ *   break browsers.
+ */
 @Configuration
+@EnableWebFluxSecurity
+@EnableReactiveMethodSecurity
 public class SecurityConfig {
+
     private final ModelMapper modelMapper;
+
     @Value("${spring.security.oauth2.resource-server.jwt.jwk-set-uri}")
     private String jwkSetUri;
 
@@ -45,46 +58,30 @@ public class SecurityConfig {
         this.modelMapper = modelMapper;
     }
 
+    /* ---------------------------------------------------------------------
+     *  🛡  AuthenticationManager
+     * ------------------------------------------------------------------- */
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
-        return authenticationConfiguration.getAuthenticationManager();
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
+        return configuration.getAuthenticationManager();
     }
 
-
-//    @Bean
-//    public AuthorizationServerSettings authorizationServerSettings() {
-//        return AuthorizationServerSettings.builder()
-//                .issuer("http://localhost:8081")
-//                .build();
-//    }
-
+    /* ---------------------------------------------------------------------
+     *  🛡  JWT infrastructure (encoder / decoder / token customiser)
+     * ------------------------------------------------------------------- */
     @Bean
     public JWKSource<SecurityContext> jwkSource() throws Exception {
-        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-        keyPairGenerator.initialize(2048);
-        KeyPair keyPair = keyPairGenerator.generateKeyPair();
-        RSAPublicKey publicKey = (RSAPublicKey) keyPair.getPublic();
-        RSAPrivateKey privateKey = (RSAPrivateKey) keyPair.getPrivate();
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
+        kpg.initialize(2048);
+        KeyPair kp = kpg.generateKeyPair();
+        RSAPublicKey publicKey  = (RSAPublicKey) kp.getPublic();
+        RSAPrivateKey privateKey = (RSAPrivateKey) kp.getPrivate();
 
         JWK jwk = new RSAKey.Builder(publicKey)
                 .privateKey(privateKey)
                 .keyID(UUID.randomUUID().toString())
                 .build();
-
         return new ImmutableJWKSet<>(new JWKSet(jwk));
-    }
-
-    // Define OAuth2TokenGenerator bean
-    @Bean
-    public OAuth2TokenGenerator<?> tokenGenerator(JWKSource<com.nimbusds.jose.proc.SecurityContext> jwkSource,
-                                                  OAuth2TokenCustomizer<JwtEncodingContext> jwtCustomizer) throws Exception {
-        JwtGenerator jwtGenerator = new JwtGenerator(jwtEncoder());
-        jwtGenerator.setJwtCustomizer(jwtCustomizer);
-
-        DelegatingOAuth2TokenGenerator refreshTokenGenerator = new DelegatingOAuth2TokenGenerator(
-                new OAuth2RefreshTokenGenerator());
-
-        return new DelegatingOAuth2TokenGenerator(jwtGenerator, refreshTokenGenerator);
     }
 
     @Bean
@@ -108,10 +105,7 @@ public class SecurityConfig {
                     OSMUserOUTDTO dto = modelMapper.map(user, OSMUserOUTDTO.class);
                     dto.getRole().setPermissions(null);
                     context.getClaims()
-                            .claim("osmUser",
-                                    dto
-                            )
-                            //.claim("permissions", user.getAuthorities())
+                            .claim("osmUser", dto)
                             .claim("role", user.getRole().getRoleName())
                             .claim("authorities", user.getAuthorities().stream()
                                     .map(GrantedAuthority::getAuthority)
@@ -123,19 +117,32 @@ public class SecurityConfig {
     }
 
     @Bean
+    public OAuth2TokenGenerator<?> tokenGenerator(JWKSource<SecurityContext> jwkSource,
+                                                  OAuth2TokenCustomizer<JwtEncodingContext> customizer) throws Exception {
+        JwtGenerator jwtGenerator = new JwtGenerator(jwtEncoder());
+        jwtGenerator.setJwtCustomizer(customizer);
+
+        OAuth2RefreshTokenGenerator refreshGenerator = new OAuth2RefreshTokenGenerator();
+        return new DelegatingOAuth2TokenGenerator(jwtGenerator, refreshGenerator);
+    }
+
+    /* ---------------------------------------------------------------------
+     *  🛡  Password encoder
+     * ------------------------------------------------------------------- */
+    @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
+    /* ---------------------------------------------------------------------
+     *  🛡  SecurityWebFilterChain – CORS is disabled here; Gateway adds headers
+     * ------------------------------------------------------------------- */
     @Bean
-    UrlBasedCorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of("*"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "DELETE", "PATCH"));
-        configuration.setAllowCredentials(true);
-        configuration.setAllowedHeaders(List.of("*"));
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
-        return source;
+    public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
+        return http
+                .cors(ServerHttpSecurity.CorsSpec::disable)   // 👈 disable CORS here
+                .csrf(ServerHttpSecurity.CsrfSpec::disable)
+                .authorizeExchange(ex -> ex.anyExchange().permitAll())
+                .build();
     }
 }
