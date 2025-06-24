@@ -14,13 +14,15 @@ import org.springframework.security.oauth2.server.authorization.config.annotatio
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenGenerator;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import java.util.List;
 
 @Configuration
 public class AuthServerConfig {
 
     private final AuthenticationEntryPoint authenticationEntryPoint;
-    private final CorsConfigurationSource corsConfigurationSource;
     private final RegisteredClientRepository registeredClientRepository;
     private final OAuth2AuthorizationService authorizationService;
     private final OAuth2TokenGenerator<?> tokenGenerator;
@@ -29,7 +31,6 @@ public class AuthServerConfig {
     private final UserService userService;
 
     public AuthServerConfig(AuthenticationEntryPoint authenticationEntryPoint,
-                            CorsConfigurationSource corsConfigurationSource,
                             RegisteredClientRepository registeredClientRepository,
                             OAuth2AuthorizationService authorizationService,
                             OAuth2TokenGenerator<?> tokenGenerator,
@@ -37,7 +38,6 @@ public class AuthServerConfig {
                             CustomTokenRequestConverter customTokenRequestConverter,
                             UserService userService) {
         this.authenticationEntryPoint = authenticationEntryPoint;
-        this.corsConfigurationSource = corsConfigurationSource;
         this.registeredClientRepository = registeredClientRepository;
         this.authorizationService = authorizationService;
         this.tokenGenerator = tokenGenerator;
