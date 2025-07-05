@@ -11,6 +11,7 @@ import com.osm.securityservice.userManagement.models.enums.ConfirmationCodeType;
 import com.osm.securityservice.userManagement.models.enums.ConfirmationMethod;
 import com.xdev.mailSender.models.MailRequest;
 import com.xdev.mailSender.services.MailService;
+import com.xdev.xdevbase.models.Action;
 import com.xdev.xdevbase.repos.BaseRepository;
 import com.xdev.xdevbase.services.impl.BaseServiceImpl;
 import com.xdev.xdevbase.utils.OSMLogger;
@@ -25,9 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.security.auth.login.AccountLockedException;
 import javax.security.auth.login.CredentialExpiredException;
 import java.security.SecureRandom;
-import java.util.List;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUTDTO> implements UserDetailsService {
@@ -551,11 +550,11 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
         }
     }
     @Override
-    public Set<String> actionsMapping(OSMUser user) {
-        Set<String> actions = new HashSet<>();
-        actions.add("READ");
+    public Set<Action> actionsMapping(OSMUser user) {
+        Set<Action> actions = new HashSet<>();
+        actions.add(Action.UPDATE);
         if (user.getRole().getRoleName().equals("ADMIN")) {
-            actions.addAll(Set.of("UPDATE", "DELETE", "CREATE"));
+            actions.addAll(Set.of(Action.UPDATE, Action.DELETE, Action.READ));
         }
         return actions;
     }
