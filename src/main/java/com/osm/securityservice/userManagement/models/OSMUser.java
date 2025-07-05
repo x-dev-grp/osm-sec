@@ -12,6 +12,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
+
 @Entity
 @Audited
 public class OSMUser extends BaseEntity implements UserDetails {
@@ -29,6 +30,7 @@ public class OSMUser extends BaseEntity implements UserDetails {
     private boolean isLocked;
     private ConfirmationMethod confirmationMethod;
     private boolean isNewUser;
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return getRole().getPermissions().stream()
@@ -69,8 +71,6 @@ public class OSMUser extends BaseEntity implements UserDetails {
     public void setEmail(String email) {
         this.email = email;
     }
-
-
 
 
     @Override

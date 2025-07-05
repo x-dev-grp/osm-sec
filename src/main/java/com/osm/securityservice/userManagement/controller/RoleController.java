@@ -6,7 +6,6 @@ import com.osm.securityservice.userManagement.dtos.OUTDTO.RoleDTO;
 import com.osm.securityservice.userManagement.models.Role;
 import com.osm.securityservice.userManagement.service.UserService;
 import com.xdev.xdevbase.controllers.impl.BaseControllerImpl;
-import com.xdev.xdevbase.models.OSMModule;
 import com.xdev.xdevbase.services.BaseService;
 import org.modelmapper.ModelMapper;
 import org.springframework.http.HttpStatus;

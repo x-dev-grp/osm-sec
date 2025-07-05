@@ -36,8 +36,8 @@ public class SecurityserviceApplication {
     }
 
     public static void main(String[] args) {
-		SpringApplication.run(SecurityserviceApplication.class, args);
-	}
+        SpringApplication.run(SecurityserviceApplication.class, args);
+    }
 
     @Bean
     public CommandLineRunner initAdminUser() {

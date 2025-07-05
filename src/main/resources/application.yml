@@ -3,11 +3,21 @@ server:
 
 eureka:
   client:
+    # pull the registry every 5s (default 30s)
+    registry-fetch-interval-seconds: 5
+    # don’t block startup waiting for registry sync
+    wait-for-registry-sync: false
     service-url:
       defaultZone: ${EUREKA_DEFAULT_ZONE:http://localhost:8761/eureka/}
   instance:
     prefer-ip-address: true
     hostname: ${HOSTNAME:localhost}
+    # heartbeat every 5s (default 30s)
+    lease-renewal-interval-in-seconds: 5
+    # expire missing instances after ~15s (default 90s)
+    lease-expiration-duration-in-seconds: 15
+
+
 
 spring:
   main:
@@ -30,7 +40,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: ${HIBERNATE_DDL_AUTO:update}
-    show-sql: ${SHOW_SQL:true}
+    show-sql: ${SHOW_SQL:false}
     database-platform: org.hibernate.dialect.PostgreSQLDialect
   sql:
     init:
@@ -60,13 +70,18 @@ spring:
 
 oauth2:
   client:
-    id: ${OAUTH_CLIENT_ID:osm-client}
-    secret: ${OAUTH_CLIENT_SECRET:super-secret}
+    id: osm-client
+    secret: X7kP9mN2vQ8rT4wY6zA1bC3dE5fG8hJ9
 
 logging:
   level:
-    org.springframework.security: ${LOG_SEC_LEVEL:TRACE}
-    org.springframework.security.oauth2: ${LOG_OAUTH2_LEVEL:DEBUG}
+    com.osm.securityservice: INFO
+    org.springframework.security: INFO
+    org.springframework.security.oauth2: INFO
+    org.springframework.web: INFO
+    org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql.BasicBinder: WARN
+    com.netflix.discovery: WARN
 
 springdoc:
   api-docs:

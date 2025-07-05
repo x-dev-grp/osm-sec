@@ -4,7 +4,6 @@ package com.osm.securityservice.userManagement.controller;
 import com.osm.securityservice.userManagement.dtos.OUTDTO.PermissionDTO;
 import com.osm.securityservice.userManagement.models.Permission;
 import com.xdev.xdevbase.controllers.impl.BaseControllerImpl;
-import com.xdev.xdevbase.models.OSMModule;
 import com.xdev.xdevbase.services.BaseService;
 import org.modelmapper.ModelMapper;
 import org.springframework.web.bind.annotation.RequestMapping;
