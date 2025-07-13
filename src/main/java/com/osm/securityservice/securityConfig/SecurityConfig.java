@@ -30,6 +30,7 @@ import java.security.KeyPairGenerator;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.util.UUID;
+import com.osm.securityservice.util.DtoDateTimeConverter;
 
 @Configuration
 public class SecurityConfig {
@@ -105,7 +106,7 @@ public class SecurityConfig {
                     dto.getRole().setPermissions(null);
                     context.getClaims()
                             .claim("osmUser",
-                                    dto
+                                    DtoDateTimeConverter.convertDateTimes(dto)
                             )
                             //.claim("permissions", user.getAuthorities())
                             .claim("role", user.getRole().getRoleName())
