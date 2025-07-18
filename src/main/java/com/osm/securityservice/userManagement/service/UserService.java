@@ -535,7 +535,7 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
         OSMLogger.logMethodEntry(this.getClass(), "findByRoleName", "Finding users by role name: " + roleName);
 
         try {
-            List<OSMUserDTO> users = userRepository.findByRoleRoleNameAndTenantId(roleName).stream().map(
+            List<OSMUserDTO> users = userRepository.findByRoleRoleNameAndTenantId(roleName,TenantContext.getCurrentTenant()).stream().map(
                     user -> modelMapper.map(user, OSMUserDTO.class)
             ).toList();
 

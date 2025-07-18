@@ -77,10 +77,7 @@ class CustomTokenGrantAuthenticationProvider implements AuthenticationProvider {
 
         try {
             OSMUser user = userService.getByUsername(tokenAuth.getUsername());
-            CompanyProfile companyProfile =companyProfileRepository.findById(user.getTenantId()).orElse(null);
-            if (companyProfile ==null || !companyProfile.isActive() ) {
-                throw new OAuth2AuthenticationException(OAuth2ErrorCodes.ACCESS_DENIED);
-            }
+
             if (user == null) {
                 OSMLogger.logSecurityEvent(this.getClass(), "AUTH_USER_NOT_FOUND",
                     "Authentication failed - User not found: " + username);
@@ -91,6 +88,12 @@ class CustomTokenGrantAuthenticationProvider implements AuthenticationProvider {
                 OSMLogger.logSecurityEvent(this.getClass(), "AUTH_ACCOUNT_LOCKED",
                     "Authentication failed - Account locked: " + username);
                 throw new OAuth2AuthenticationException(OAuth2ErrorCodes.ACCESS_DENIED);
+            }
+            if(!user.getRole().getRoleName().equalsIgnoreCase("OSMADMIN")) {
+                CompanyProfile companyProfile =companyProfileRepository.findById(user.getTenantId()).orElse(null);
+                if ( companyProfile ==null || !companyProfile.isActive() ) {
+                    throw new OAuth2AuthenticationException(OAuth2ErrorCodes.ACCESS_DENIED);
+                }
             }
 
             if (user.isNewUser()) {

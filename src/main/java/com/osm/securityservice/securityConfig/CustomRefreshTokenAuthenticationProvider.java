@@ -121,9 +121,11 @@ class CustomRefreshTokenAuthenticationProvider implements AuthenticationProvider
                     "Account locked during refresh token authentication: " + username);
                 throw new OAuth2AuthenticationException(OAuth2ErrorCodes.ACCESS_DENIED);
             }
-            CompanyProfile companyProfile =companyProfileRepository.findById(user.getTenantId()).orElse(null);
-            if (companyProfile ==null || !companyProfile.isActive() ) {
-                throw new OAuth2AuthenticationException(OAuth2ErrorCodes.ACCESS_DENIED);
+            if(!user.getRole().getRoleName().equalsIgnoreCase("OSMADMIN")) {
+                CompanyProfile companyProfile =companyProfileRepository.findById(user.getTenantId()).orElse(null);
+                if ( companyProfile ==null || !companyProfile.isActive() ) {
+                    throw new OAuth2AuthenticationException(OAuth2ErrorCodes.ACCESS_DENIED);
+                }
             }
             OSMLogger.log(this.getClass(), OSMLogger.LogLevel.DEBUG, "User validation passed for refresh token: {}", username);
 
