@@ -11,6 +11,8 @@ import com.osm.securityservice.userManagement.models.enums.ConfirmationCodeType;
 import com.osm.securityservice.userManagement.models.enums.ConfirmationMethod;
 import com.xdev.mailSender.models.MailRequest;
 import com.xdev.mailSender.services.MailService;
+import com.xdev.xdevbase.config.TenantContext;
+import com.xdev.xdevbase.models.Action;
 import com.xdev.xdevbase.models.Action;
 import com.xdev.xdevbase.repos.BaseRepository;
 import com.xdev.xdevbase.services.impl.BaseServiceImpl;
@@ -528,11 +530,12 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
     }
 
     public List<OSMUserDTO> findByRoleName(String roleName) {
+
         long startTime = System.currentTimeMillis();
         OSMLogger.logMethodEntry(this.getClass(), "findByRoleName", "Finding users by role name: " + roleName);
 
         try {
-            List<OSMUserDTO> users = userRepository.findByRoleRoleName(roleName).stream().map(
+            List<OSMUserDTO> users = userRepository.findByRoleRoleNameAndTenantId(roleName).stream().map(
                     user -> modelMapper.map(user, OSMUserDTO.class)
             ).toList();
 
@@ -552,9 +555,9 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
     @Override
     public Set<Action> actionsMapping(OSMUser user) {
         Set<Action> actions = new HashSet<>();
-        actions.add(Action.UPDATE);
+        actions.add(Action.READ);
         if (user.getRole().getRoleName().equals("ADMIN")) {
-            actions.addAll(Set.of(Action.UPDATE, Action.DELETE, Action.READ));
+            actions.addAll(Set.of(Action.UPDATE, Action.CREATE,Action.DELETE));
         }
         return actions;
     }

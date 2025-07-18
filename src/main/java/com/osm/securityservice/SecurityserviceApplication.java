@@ -119,6 +119,22 @@ public class SecurityserviceApplication {
             user.setRole(userRole);
             user.setLocked(false); // not locked
             userService.save(user);
+
+
+            RoleDTO osmAdminRoleDto = new RoleDTO();
+            osmAdminRoleDto.setRoleName("OSMADMIN");
+            osmAdminRoleDto.setPermissions(Set.of(readReception, writeReception));
+            RoleDTO osmAdminRole = roleService.save(userRoleDto);
+
+
+            OSMUserDTO osmAdmin = new OSMUserDTO();
+            osmAdmin.setUsername("osmAdmin");
+            osmAdmin.setPassword(passwordEncoder.encode("osmAdmin123"));
+            osmAdmin.setEmail("osmAdmin@example.com");
+            osmAdmin.setPhoneNumber("123456789");
+            osmAdmin.setRole(osmAdminRole);
+            osmAdmin.setLocked(false);
+
         };
     }
 

@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
 public interface UserRepository extends BaseRepository<OSMUser> {
@@ -20,5 +21,5 @@ public interface UserRepository extends BaseRepository<OSMUser> {
 
     Optional<OSMUser> findByPhoneNumber(String phoneNumber);
 
-    List<OSMUser> findByRoleRoleName(String roleName);
+    List<OSMUser> findByRoleRoleNameAndTenantId(String roleName, UUID tenantId);
 }

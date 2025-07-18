@@ -42,6 +42,9 @@ public class RoleService extends BaseServiceImpl<Role, RoleDTO, RoleDTO> {
         }
     }
 
+    Role getRoleByName(String roleName) {
+        return  roleRepository.findByRoleName(roleName).orElse(null);
+    }
     @Override
     public void resolveEntityRelations(Role entity) {
         long startTime = System.currentTimeMillis();

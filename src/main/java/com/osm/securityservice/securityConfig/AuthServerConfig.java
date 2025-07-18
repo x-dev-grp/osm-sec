@@ -1,5 +1,6 @@
 package com.osm.securityservice.securityConfig;
 
+import com.osm.securityservice.userManagement.data.CompanyProfileRepository;
 import com.osm.securityservice.userManagement.service.UserService;
 import com.xdev.xdevbase.utils.OSMLogger;
 import org.springframework.context.annotation.Bean;
@@ -26,17 +27,17 @@ public class AuthServerConfig {
     private final AuthenticationManager authenticationManager;
     private final CustomTokenRequestConverter customTokenRequestConverter;
     private final UserService userService;
-
+    private final CompanyProfileRepository companyProfileRepository;
     public AuthServerConfig(AuthenticationEntryPoint authenticationEntryPoint,
                             RegisteredClientRepository registeredClientRepository,
                             OAuth2AuthorizationService authorizationService,
-                            OAuth2TokenGenerator<?> tokenGenerator,
+                            OAuth2TokenGenerator<?> tokenGenerator,CompanyProfileRepository companyProfileRepository,
                             AuthenticationManager authenticationManager,
                             CustomTokenRequestConverter customTokenRequestConverter,
                             UserService userService) {
         long startTime = System.currentTimeMillis();
         OSMLogger.logMethodEntry(this.getClass(), "AuthServerConfig", "Initializing AuthServerConfig");
-        
+
         try {
             this.authenticationEntryPoint = authenticationEntryPoint;
             this.registeredClientRepository = registeredClientRepository;
@@ -45,12 +46,13 @@ public class AuthServerConfig {
             this.authenticationManager = authenticationManager;
             this.customTokenRequestConverter = customTokenRequestConverter;
             this.userService = userService;
-            
+            this.companyProfileRepository = companyProfileRepository;
+
             OSMLogger.logMethodExit(this.getClass(), "AuthServerConfig", "AuthServerConfig initialized successfully");
             OSMLogger.logPerformance(this.getClass(), "AuthServerConfig", startTime, System.currentTimeMillis());
-            OSMLogger.logBusinessEvent(this.getClass(), "AUTH_SERVER_CONFIG_INITIALIZED", 
+            OSMLogger.logBusinessEvent(this.getClass(), "AUTH_SERVER_CONFIG_INITIALIZED",
                 "OAuth2 Authorization Server configuration initialized");
-            
+
         } catch (Exception e) {
             OSMLogger.logException(this.getClass(), "Error initializing AuthServerConfig", e);
             throw e;
@@ -63,7 +65,7 @@ public class AuthServerConfig {
     public SecurityFilterChain publicEndpointsFilterChain(HttpSecurity http) throws Exception {
         long startTime = System.currentTimeMillis();
         OSMLogger.logMethodEntry(this.getClass(), "publicEndpointsFilterChain", "Configuring public endpoints");
-        
+
         try {
             http
                     .securityMatcher("/api/security/user/auth/**")
@@ -73,14 +75,14 @@ public class AuthServerConfig {
                     .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
             SecurityFilterChain filterChain = http.build();
-            
+
             OSMLogger.logMethodExit(this.getClass(), "publicEndpointsFilterChain", "Public endpoints filter chain configured");
             OSMLogger.logPerformance(this.getClass(), "publicEndpointsFilterChain", startTime, System.currentTimeMillis());
-            OSMLogger.logSecurityEvent(this.getClass(), "PUBLIC_ENDPOINTS_CONFIGURED", 
+            OSMLogger.logSecurityEvent(this.getClass(), "PUBLIC_ENDPOINTS_CONFIGURED",
                 "Public endpoints filter chain configured for /api/security/user/auth/**");
-            
+
             return filterChain;
-            
+
         } catch (Exception e) {
             OSMLogger.logException(this.getClass(), "Error configuring public endpoints filter chain", e);
             throw e;
@@ -93,7 +95,7 @@ public class AuthServerConfig {
     public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
         long startTime = System.currentTimeMillis();
         OSMLogger.logMethodEntry(this.getClass(), "authorizationServerSecurityFilterChain", "Configuring OAuth2 authorization server");
-        
+
         try {
             OAuth2AuthorizationServerConfigurer authorizationServerConfigurer = getOAuth2AuthorizationServerConfigurer();
 
@@ -119,14 +121,14 @@ public class AuthServerConfig {
                     .oauth2ResourceServer(oauth -> oauth.jwt(Customizer.withDefaults()));
 
             SecurityFilterChain filterChain = http.build();
-            
+
             OSMLogger.logMethodExit(this.getClass(), "authorizationServerSecurityFilterChain", "OAuth2 authorization server configured");
             OSMLogger.logPerformance(this.getClass(), "authorizationServerSecurityFilterChain", startTime, System.currentTimeMillis());
-            OSMLogger.logSecurityEvent(this.getClass(), "OAUTH2_SERVER_CONFIGURED", 
+            OSMLogger.logSecurityEvent(this.getClass(), "OAUTH2_SERVER_CONFIGURED",
                 "OAuth2 Authorization Server security filter chain configured");
-            
+
             return filterChain;
-            
+
         } catch (Exception e) {
             OSMLogger.logException(this.getClass(), "Error configuring OAuth2 authorization server filter chain", e);
             throw e;
@@ -136,7 +138,7 @@ public class AuthServerConfig {
     private OAuth2AuthorizationServerConfigurer getOAuth2AuthorizationServerConfigurer() {
         long startTime = System.currentTimeMillis();
         OSMLogger.logMethodEntry(this.getClass(), "getOAuth2AuthorizationServerConfigurer", "Creating OAuth2 authorization server configurer");
-        
+
         try {
             OAuth2AuthorizationServerConfigurer configurer = new OAuth2AuthorizationServerConfigurer();
             configurer
@@ -144,18 +146,18 @@ public class AuthServerConfig {
                             .accessTokenRequestConverter(customTokenRequestConverter)
                             .authenticationProvider(new CustomTokenGrantAuthenticationProvider(
                                     authenticationManager, authorizationService, tokenGenerator,
-                                    registeredClientRepository, userService))
+                                    registeredClientRepository, userService,companyProfileRepository))
                             .authenticationProvider(new CustomRefreshTokenAuthenticationProvider(
-                                    authorizationService, tokenGenerator, userService))
+                                    authorizationService, tokenGenerator, userService,companyProfileRepository))
                     );
-            
+
             OSMLogger.logMethodExit(this.getClass(), "getOAuth2AuthorizationServerConfigurer", "OAuth2 configurer created with token endpoint");
             OSMLogger.logPerformance(this.getClass(), "getOAuth2AuthorizationServerConfigurer", startTime, System.currentTimeMillis());
-            OSMLogger.logSecurityEvent(this.getClass(), "OAUTH2_CONFIGURER_CREATED", 
+            OSMLogger.logSecurityEvent(this.getClass(), "OAUTH2_CONFIGURER_CREATED",
                 "OAuth2 Authorization Server configurer created with custom authentication providers");
-            
+
             return configurer;
-            
+
         } catch (Exception e) {
             OSMLogger.logException(this.getClass(), "Error creating OAuth2 authorization server configurer", e);
             throw e;
