@@ -32,22 +32,22 @@ public class CompanyProfile extends BaseEntity implements Serializable {
         this.active = active;
     }
 
-    @Column(nullable = false, precision = 19, scale = 2)
+//   ( precision = 19, scale = 2)
     private BigDecimal capital;
 
 
-    @Column
+   
     private String email;
 
-    @Column
+   
     private String phone;
-    @Column
+   
     private String website;
     private String addressLine1;
-    @Column
+   
     private String city;
     private String postalCode;
-    @Column
+   
     private String governorate;
     /**
      * Logo binary data, max ~200KB enforced by service/controller

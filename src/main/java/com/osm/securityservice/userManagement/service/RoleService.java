@@ -6,14 +6,14 @@ import com.osm.securityservice.userManagement.data.RoleRepository;
 import com.osm.securityservice.userManagement.dtos.OUTDTO.RoleDTO;
 import com.osm.securityservice.userManagement.models.Permission;
 import com.osm.securityservice.userManagement.models.Role;
+import com.xdev.xdevbase.config.TenantContext;
 import com.xdev.xdevbase.repos.BaseRepository;
 import com.xdev.xdevbase.services.impl.BaseServiceImpl;
 import com.xdev.xdevbase.utils.OSMLogger;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -23,21 +23,31 @@ public class RoleService extends BaseServiceImpl<Role, RoleDTO, RoleDTO> {
 
     protected RoleService(BaseRepository<Role> repository, ModelMapper modelMapper, RoleRepository roleRepository, PermissionRepository permissionRepository) {
         super(repository, modelMapper);
-        
-        long startTime = System.currentTimeMillis();
-        OSMLogger.logMethodEntry(this.getClass(), "RoleService", "Initializing RoleService");
-        
-        try {
+
             this.roleRepository = roleRepository;
             this.permissionRepository = permissionRepository;
-            
-            OSMLogger.logMethodExit(this.getClass(), "RoleService", "RoleService initialized successfully");
-            OSMLogger.logPerformance(this.getClass(), "RoleService", startTime, System.currentTimeMillis());
-            OSMLogger.logSecurityEvent(this.getClass(), "ROLE_SERVICE_INITIALIZED", 
-                "Role service initialized successfully");
-            
+
+    }
+
+    @Override
+    public List<RoleDTO> findAll() {
+        long startTime = System.currentTimeMillis();
+        OSMLogger.logMethodEntry(this.getClass(), "findAll");
+
+        try {
+            UUID tenantId = TenantContext.getCurrentTenant();
+            Role adminRole = getRoleByName("ADMIN");
+            List<Role> data = repository.findAllByTenantIdAndIsDeletedFalse(tenantId);
+            if(adminRole != null && !data.contains(adminRole)) {
+                data.add(adminRole);
+            }
+            List<RoleDTO> result = data.stream().map(item -> modelMapper.map(item, outDTOClass)).toList();
+            OSMLogger.logMethodExit(this.getClass(), "findAll", "Found " + result.size() + " entities");
+            OSMLogger.logPerformance(this.getClass(), "findAll", startTime, System.currentTimeMillis());
+            OSMLogger.logDataAccess(this.getClass(), "READ_ALL", entityClass.getSimpleName());
+            return result;
         } catch (Exception e) {
-            OSMLogger.logException(this.getClass(), "Error initializing RoleService", e);
+            OSMLogger.logException(this.getClass(), "Error finding all entities", e);
             throw e;
         }
     }

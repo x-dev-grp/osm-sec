@@ -71,22 +71,6 @@ public class SecurityserviceApplication {
             deleteUsers.setModule(OSMModule.HABILITATION);
             PermissionDTO delete = permissionService.save(deleteUsers);
 
-            RoleDTO adminRole = new RoleDTO();
-            adminRole.setRoleName("ADMIN");
-            adminRole.setPermissions(Set.of(read, write, update, delete));
-            RoleDTO saveRole = roleService.save(adminRole);
-
-
-            // Create admin user
-            OSMUserDTO admin = new OSMUserDTO();
-            admin.setUsername("admin");
-            admin.setPassword(passwordEncoder.encode("admin123"));
-            admin.setEmail("admin@example.com");
-            admin.setPhoneNumber("1234567890");
-            admin.setRole(saveRole);
-            admin.setLocked(false); // not locked
-            userService.save(admin);
-
 
             if (userService.getByUsername("user") != null) {
                 return;

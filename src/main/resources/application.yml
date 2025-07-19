@@ -53,7 +53,7 @@ spring:
     host: ${MAIL_HOST:smtp.gmail.com}
     port: ${MAIL_PORT:587}
     username: ${MAIL_USER:xdevgroupe@gmail.com}
-    password: ${MAIL_PASS:changeme}
+    password: ${MAIL_PASS:jzea krmd ubpo nlos}
     protocol: smtp
     default-encoding: UTF-8
     properties:

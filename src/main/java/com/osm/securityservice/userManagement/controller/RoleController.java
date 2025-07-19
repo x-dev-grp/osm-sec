@@ -22,7 +22,6 @@ import java.util.Objects;
 @RequestMapping("/api/security/role")
 public class RoleController extends BaseControllerImpl<Role, RoleDTO, RoleDTO> {
     private final UserService userService;
-
     public RoleController(BaseService<Role, RoleDTO, RoleDTO> baseService, ModelMapper modelMapper, UserService userService) {
         super(baseService, modelMapper);
         this.userService = userService;

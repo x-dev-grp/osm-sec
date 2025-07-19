@@ -71,6 +71,7 @@ public class CompanyProfileService extends BaseServiceImpl<CompanyProfile, Compa
             return null;
        CompanyProfile company= new CompanyProfile();
        company.setLegalName(dto.getLegalName());
+       company.setActive(true);
        CompanyProfile companyProfile = repository.save(company);
 
        OSMUserOUTDTO userDto = modelMapper.map(dto.getCompanyUser(), OSMUserOUTDTO.class);
@@ -122,7 +123,7 @@ public class CompanyProfileService extends BaseServiceImpl<CompanyProfile, Compa
         OSMLogger.logMethodEntry(this.getClass(), "findAll");
 
         try {
-            Collection<CompanyProfile> data = repository.findAllAndIsDeletedFalse();
+            Collection<CompanyProfile> data = repository.findAllByIsDeletedFalse();
             List<CompanyProfileDTO> result = data.stream().map(item -> modelMapper.map(item, outDTOClass)).toList();
             OSMLogger.logMethodExit(this.getClass(), "findAll", "Found " + result.size() + " entities");
             OSMLogger.logPerformance(this.getClass(), "findAll", startTime, System.currentTimeMillis());
@@ -143,7 +144,7 @@ public class CompanyProfileService extends BaseServiceImpl<CompanyProfile, Compa
             Sort.Direction sortDirection = Sort.Direction.fromString(direction);  // "ASC" or "DESC"
             Sort sortObject = Sort.by(sortDirection, sort);  // Sort by the field and direction
             Pageable pageable = PageRequest.of(page, size, sortObject);
-            Page<CompanyProfile> data = repository.findAllAndIsDeletedFalse(pageable);
+            Page<CompanyProfile> data = repository.findAllByIsDeletedFalse(pageable);
 
             Page<CompanyProfileDTO> result = data.map(item -> modelMapper.map(item, outDTOClass));
             OSMLogger.logMethodExit(this.getClass(), "findAll", "Page " + page + " with " + result.getContent().size() + " entities");
