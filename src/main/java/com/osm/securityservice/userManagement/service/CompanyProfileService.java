@@ -2,32 +2,28 @@ package com.osm.securityservice.userManagement.service;
 
 import com.osm.securityservice.userManagement.data.PermissionRepository;
 import com.osm.securityservice.userManagement.data.RoleRepository;
-import com.osm.securityservice.userManagement.dtos.OUTDTO.*;
+import com.osm.securityservice.userManagement.dtos.OUTDTO.CompanyProfileDTO;
+import com.osm.securityservice.userManagement.dtos.OUTDTO.CompanyUserDTO;
+import com.osm.securityservice.userManagement.dtos.OUTDTO.OSMUserOUTDTO;
+import com.osm.securityservice.userManagement.dtos.OUTDTO.RoleDTO;
 import com.osm.securityservice.userManagement.models.CompanyProfile;
 import com.osm.securityservice.userManagement.models.Permission;
 import com.osm.securityservice.userManagement.models.Role;
-import com.xdev.xdevbase.apiDTOs.SearchResponse;
-import com.xdev.xdevbase.config.TenantContext;
 import com.xdev.xdevbase.models.Action;
-import com.xdev.xdevbase.models.SearchData;
-import com.xdev.xdevbase.models.SearchDetails;
 import com.xdev.xdevbase.repos.BaseRepository;
 import com.xdev.xdevbase.services.impl.BaseServiceImpl;
 import com.xdev.xdevbase.services.utils.SearchSpecificationBuilder;
 import com.xdev.xdevbase.utils.OSMLogger;
 import jakarta.persistence.EntityNotFoundException;
 import org.modelmapper.ModelMapper;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 
 @Service
@@ -36,6 +32,7 @@ public class CompanyProfileService extends BaseServiceImpl<CompanyProfile, Compa
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
     private final SearchSpecificationBuilder<CompanyProfile> specificationBuilder;
+
     public CompanyProfileService(BaseRepository<CompanyProfile> repository, ModelMapper modelMapper, UserService userService, RoleRepository roleRepository, PermissionRepository permissionRepository, SearchSpecificationBuilder<CompanyProfile> specificationBuilder) {
         super(repository, modelMapper);
         this.userService = userService;
@@ -67,26 +64,25 @@ public class CompanyProfileService extends BaseServiceImpl<CompanyProfile, Compa
 
     @Transactional
     public CompanyUserDTO save(CompanyUserDTO dto) throws Exception {
-        if(dto==null || dto.getCompanyUser()==null)
-            return null;
-       CompanyProfile company= new CompanyProfile();
-       company.setLegalName(dto.getLegalName());
-       company.setActive(true);
-       CompanyProfile companyProfile = repository.save(company);
+        if (dto == null || dto.getCompanyUser() == null) return null;
+        CompanyProfile company = new CompanyProfile();
+        company.setLegalName(dto.getLegalName());
+        company.setActive(true);
+        CompanyProfile companyProfile = repository.save(company);
 
-       OSMUserOUTDTO userDto = modelMapper.map(dto.getCompanyUser(), OSMUserOUTDTO.class);
-       Role  adminRole = roleRepository.findByRoleName("ADMIN").orElse(null);
-       if(adminRole==null){
-           Role role = new Role();
-           role.setRoleName("ADMIN");
-           List<Permission> permissionList= permissionRepository.findAll();
-           Set<Permission> permissions=new HashSet<>(permissionList);
-           role.setPermissions(permissions);
-           adminRole=roleRepository.save(role);
-       }
-       userDto.setRole(modelMapper.map(adminRole,RoleDTO.class));
-       userDto.setTenantId(companyProfile.getId());
-       userDto= userService.addUser(userDto);
+        OSMUserOUTDTO userDto = modelMapper.map(dto.getCompanyUser(), OSMUserOUTDTO.class);
+        Role adminRole = roleRepository.findByRoleName("ADMIN").orElse(null);
+        if (adminRole == null) {
+            Role role = new Role();
+            role.setRoleName("ADMIN");
+            List<Permission> permissionList = permissionRepository.findAll();
+            Set<Permission> permissions = new HashSet<>(permissionList);
+            role.setPermissions(permissions);
+            adminRole = roleRepository.save(role);
+        }
+        userDto.setRole(modelMapper.map(adminRole, RoleDTO.class));
+        userDto.setTenantId(companyProfile.getId());
+        userDto = userService.addUser(userDto);
 
         CompanyUserDTO companyUserDTO = new CompanyUserDTO();
         companyUserDTO.setLegalName(companyProfile.getLegalForm());
@@ -157,58 +153,70 @@ public class CompanyProfileService extends BaseServiceImpl<CompanyProfile, Compa
         }
     }
 
-/*
+    /*
 
-    @Override
-    public SearchResponse<CompanyProfile, CompanyProfileDTO> search(SearchData searchData) {
-        long startTime = System.currentTimeMillis();
-        OSMLogger.logMethodEntry(this.getClass(), "search", searchData);
+        @Override
+        public SearchResponse<CompanyProfile, CompanyProfileDTO> search(SearchData searchData) {
+            long startTime = System.currentTimeMillis();
+            OSMLogger.logMethodEntry(this.getClass(), "search", searchData);
 
-        try {
-            int page = searchData.getPage() != null ? searchData.getPage() : 0;
-            int size = searchData.getSize() != null ? searchData.getSize() : 10;
-            Sort.Direction direction = (searchData.getOrder() != null && searchData.getOrder().equalsIgnoreCase("DESC")) ? Sort.Direction.DESC : Sort.Direction.ASC;
-            String sort = searchData.getSort() != null ? searchData.getSort() : "createdDate";
-            Pageable pageable = PageRequest.of(page, size, direction, sort);
+            try {
+                int page = searchData.getPage() != null ? searchData.getPage() : 0;
+                int size = searchData.getSize() != null ? searchData.getSize() : 10;
+                Sort.Direction direction = (searchData.getOrder() != null && searchData.getOrder().equalsIgnoreCase("DESC")) ? Sort.Direction.DESC : Sort.Direction.ASC;
+                String sort = searchData.getSort() != null ? searchData.getSort() : "createdDate";
+                Pageable pageable = PageRequest.of(page, size, direction, sort);
 
-            Specification<CompanyProfile> spec = null;
-            if (searchData.getSearchData() != null) {
-                spec = specificationBuilder.buildSpecification(searchData.getSearchData());
+                Specification<CompanyProfile> spec = null;
+                if (searchData.getSearchData() != null) {
+                    spec = specificationBuilder.buildSpecification(searchData.getSearchData());
+                }
+
+                Page<CompanyProfile> result;
+                if (spec != null) {
+                    result = repository.findAll(spec, pageable);
+                } else {
+                    result = repository.findAll(pageable);
+                }
+                List<CompanyProfileDTO> dtos = result.getContent().stream().map(
+                        element -> modelMapper.map(element, outDTOClass)
+                ).toList();
+
+                SearchResponse<CompanyProfile, CompanyProfileDTO> response = new SearchResponse<>(
+                        result.getTotalElements(),
+                        dtos,
+                        result.getTotalPages(),
+                        result.getNumber() + 1
+                );
+
+                OSMLogger.logMethodExit(this.getClass(), "search", "Found " + dtos.size() + " entities out of " + result.getTotalElements());
+                OSMLogger.logPerformance(this.getClass(), "search", startTime, System.currentTimeMillis());
+                OSMLogger.logDataAccess(this.getClass(), "SEARCH", entityClass.getSimpleName());
+
+                return response;
+            } catch (Exception e) {
+                OSMLogger.logException(this.getClass(), "Error during search operation", e);
+                return new SearchResponse<>(
+                        0,
+                        null,
+                        0,
+                        0
+                );
             }
-
-            Page<CompanyProfile> result;
-            if (spec != null) {
-                result = repository.findAll(spec, pageable);
-            } else {
-                result = repository.findAll(pageable);
-            }
-            List<CompanyProfileDTO> dtos = result.getContent().stream().map(
-                    element -> modelMapper.map(element, outDTOClass)
-            ).toList();
-
-            SearchResponse<CompanyProfile, CompanyProfileDTO> response = new SearchResponse<>(
-                    result.getTotalElements(),
-                    dtos,
-                    result.getTotalPages(),
-                    result.getNumber() + 1
-            );
-
-            OSMLogger.logMethodExit(this.getClass(), "search", "Found " + dtos.size() + " entities out of " + result.getTotalElements());
-            OSMLogger.logPerformance(this.getClass(), "search", startTime, System.currentTimeMillis());
-            OSMLogger.logDataAccess(this.getClass(), "SEARCH", entityClass.getSimpleName());
-
-            return response;
-        } catch (Exception e) {
-            OSMLogger.logException(this.getClass(), "Error during search operation", e);
-            return new SearchResponse<>(
-                    0,
-                    null,
-                    0,
-                    0
-            );
         }
+
+    */
+    @Override
+    public CompanyProfileDTO update(CompanyProfileDTO dto) {
+        Optional<CompanyProfile> existingOpt = repository.findById(dto.getId());
+        if (existingOpt.isEmpty()) {
+            throw new IllegalArgumentException("Company profile not found for tenantId: " + dto.getId());
+        }
+        CompanyProfile company = existingOpt.get();
+        UUID originalId = company.getExternalId();
+        modelMapper.map(dto, company);
+        company.setExternalId(originalId); // Restore the correct ID after mapping
+        CompanyProfile updated = repository.save(company);
+        return modelMapper.map(updated, CompanyProfileDTO.class);
     }
-
-*/
-
 }
