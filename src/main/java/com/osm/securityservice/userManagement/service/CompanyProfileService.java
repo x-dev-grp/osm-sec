@@ -89,7 +89,7 @@ public class CompanyProfileService extends BaseServiceImpl<CompanyProfile, Compa
         companyUserDTO.setCompanyUser(userDto);
         return companyUserDTO;
     }
-
+    @Transactional(readOnly = true)
     @Override
     public CompanyProfileDTO findById(UUID id) {
         long startTime = System.currentTimeMillis();
