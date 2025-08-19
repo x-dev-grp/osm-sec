@@ -12,6 +12,10 @@ import com.xdev.xdevbase.services.impl.BaseServiceImpl;
 import com.xdev.xdevbase.utils.OSMLogger;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
+//todo refactor
+// ⬇️ ADDED imports
+import org.springframework.transaction.annotation.Transactional;
+import com.osm.securityservice.userManagement.dtos.OUTDTO.PermissionDTO;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -91,5 +95,75 @@ public class RoleService extends BaseServiceImpl<Role, RoleDTO, RoleDTO> {
                 "Error resolving entity relations for role: " + roleName, e);
             throw e;
         }
+    }
+
+    // ⬇️ ADDED: Hard-replace permissions on update (remove all, then add new)
+    @Override
+    @Transactional
+    public RoleDTO update(RoleDTO dto) {
+        long startTime = System.currentTimeMillis();
+        OSMLogger.logMethodEntry(this.getClass(), "update");
+
+        try {
+            if (dto == null || dto.getId() == null) {
+                throw new IllegalArgumentException("Role ID is required");
+            }
+
+            Role role = roleRepository.findById(dto.getId())
+                    .orElseThrow(() -> new IllegalArgumentException("Role not found: " + dto.getId()));
+
+            // Update simple fields
+            if (dto.getRoleName() != null) role.setRoleName(dto.getRoleName());
+            role.setDescription(dto.getDescription());
+
+            // PHASE A: clear existing permissions and flush (forces join-table delete first)
+            role.getPermissions().clear();
+            roleRepository.saveAndFlush(role);
+
+            // PHASE B: attach exactly what the DTO sends (resolved as managed entities)
+            Set<Permission> target = resolvePermissionsFromDTOs(dto.getPermissions());
+            role.getPermissions().addAll(target);
+
+            Role saved = roleRepository.saveAndFlush(role);
+            RoleDTO out = modelMapper.map(saved, outDTOClass);
+
+            OSMLogger.logMethodExit(this.getClass(), "update", "Updated role with " + saved.getPermissions().size() + " permissions");
+            OSMLogger.logPerformance(this.getClass(), "update", startTime, System.currentTimeMillis());
+            OSMLogger.logDataAccess(this.getClass(), "UPDATE", entityClass.getSimpleName());
+
+            return out;
+
+        } catch (Exception e) {
+            OSMLogger.logException(this.getClass(), "Error updating role", e);
+            throw e;
+        }
+    }
+
+    // ⬇️ ADDED: Resolve managed Permission entities from incoming PermissionDTOs (by id only)
+    private Set<Permission> resolvePermissionsFromDTOs(Set<PermissionDTO> incoming) {
+        if (incoming == null || incoming.isEmpty()) return Collections.emptySet();
+
+        // We rely on PermissionDTO.id (entity PK) to avoid any identifier mutation issues.
+        Set<UUID> ids = incoming.stream()
+                .filter(Objects::nonNull)
+                .map(PermissionDTO::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        if (ids.isEmpty()) return Collections.emptySet();
+
+        List<Permission> perms = permissionRepository.findAllById(ids);
+
+        // Optional guard: ensure all sent IDs exist
+        if (perms.size() != ids.size()) {
+            Set<UUID> found = perms.stream().map(Permission::getId).collect(Collectors.toSet());
+            Set<UUID> missing = new LinkedHashSet<>(ids);
+            missing.removeAll(found);
+            if (!missing.isEmpty()) {
+                throw new IllegalArgumentException("Unknown permission IDs: " + missing);
+            }
+        }
+
+        return new LinkedHashSet<>(perms);
     }
 }

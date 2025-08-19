@@ -1,13 +1,15 @@
 package com.osm.securityservice;
 
-import com.osm.securityservice.userManagement.data.PermissionRepository;
+import com.osm.securityservice.userManagement.data.RoleRepository;
+import com.osm.securityservice.userManagement.data.UserRepository;
 import com.osm.securityservice.userManagement.dtos.OUTDTO.OSMUserDTO;
-import com.osm.securityservice.userManagement.dtos.OUTDTO.PermissionDTO;
 import com.osm.securityservice.userManagement.dtos.OUTDTO.RoleDTO;
-import com.osm.securityservice.userManagement.service.PermissionService;
+import com.osm.securityservice.userManagement.models.OSMUser;
+import com.osm.securityservice.userManagement.models.Role;
 import com.osm.securityservice.userManagement.service.RoleService;
 import com.osm.securityservice.userManagement.service.UserService;
-import com.xdev.xdevbase.models.OSMModule;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -17,22 +19,36 @@ import org.springframework.data.envers.repository.support.EnversRevisionReposito
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import java.util.Set;
+import java.util.Optional;
 
 @SpringBootApplication
 @ComponentScan(basePackages = {"com.xdev", "com.xdev.xdevbase", "com.osm.securityservice"})
 @EnableJpaRepositories(basePackages = {"com.xdev", "com.xdev.xdevbase", "com.osm.securityservice"}, repositoryFactoryBeanClass = EnversRevisionRepositoryFactoryBean.class)
 public class SecurityserviceApplication {
+
+    private static final Logger log = LoggerFactory.getLogger(SecurityserviceApplication.class);
+    public static final String RAW_PASSWORD1 = "osmAdmin123";
+    public static final String OSM_ADMIN = "osmAdmin";
+    public static final String MAIL1 = "osmAdmin@example.com";
+    public static final String NUMBER1 = "1234567819";
+    public static final String OSMADMIN = "OSMADMIN";
+
     private final UserService userService;
     private final RoleService roleService;
-    private final PermissionService permissionService;
     private final PasswordEncoder passwordEncoder;
+    private final RoleRepository roleRepository;
+    private final UserRepository userRepository;
 
-    public SecurityserviceApplication(UserService userService, RoleService roleService, PermissionRepository permissionRepository, PermissionService permissionService, PasswordEncoder passwordEncoder) {
+    public SecurityserviceApplication(UserService userService,
+                                      RoleService roleService,
+                                      PasswordEncoder passwordEncoder,
+                                      RoleRepository roleRepository,
+                                      UserRepository userRepository) {
         this.userService = userService;
         this.roleService = roleService;
-        this.permissionService = permissionService;
         this.passwordEncoder = passwordEncoder;
+        this.roleRepository = roleRepository;
+        this.userRepository = userRepository;
     }
 
     public static void main(String[] args) {
@@ -42,84 +58,56 @@ public class SecurityserviceApplication {
     @Bean
     public CommandLineRunner initAdminUser() {
         return args -> {
-            // Check if admin user already exists
-            if (userService.getByUsername("admin") != null) {
-                return;
-            }
-            // Create permissions
-            PermissionDTO readUsers = new PermissionDTO();
-            readUsers.setPermissionName("READ");
-            readUsers.setEntity("USER");
-            readUsers.setModule(OSMModule.HABILITATION); // Enum or Entity
-            PermissionDTO read = permissionService.save(readUsers);
-
-            PermissionDTO writeUsers = new PermissionDTO();
-            writeUsers.setPermissionName("WRITE");
-            writeUsers.setEntity("USER");
-            writeUsers.setModule(OSMModule.HABILITATION);
-            PermissionDTO write = permissionService.save(writeUsers);
-
-            PermissionDTO updateUsers = new PermissionDTO();
-            updateUsers.setPermissionName("UPDATE");
-            updateUsers.setEntity("USER");
-            updateUsers.setModule(OSMModule.HABILITATION);
-            PermissionDTO update = permissionService.save(updateUsers);
-
-            PermissionDTO deleteUsers = new PermissionDTO();
-            deleteUsers.setPermissionName("DELETE");
-            deleteUsers.setEntity("USER");
-            deleteUsers.setModule(OSMModule.HABILITATION);
-            PermissionDTO delete = permissionService.save(deleteUsers);
+            log.info("▶ Bootstrapping default security data...");
 
 
-            if (userService.getByUsername("user") != null) {
-                return;
-            }
-            // Create permissions
-            PermissionDTO readReceptions = new PermissionDTO();
-            readReceptions.setPermissionName("READ");
-            readReceptions.setEntity("RECEPTION");
-            readReceptions.setModule(OSMModule.RECEPTION); // Enum or Entity
-            PermissionDTO readReception = permissionService.save(readReceptions);
+            // ===== osmAdminRole =====
+            RoleDTO osmAdminRole = ensureRole();
 
-            PermissionDTO writeReceptions = new PermissionDTO();
-            writeReceptions.setPermissionName("WRITE");
-            writeReceptions.setEntity("RECEPTION");
-            writeReceptions.setModule(OSMModule.RECEPTION);
-            PermissionDTO writeReception = permissionService.save(writeReceptions);
+            // ===== Users =====
+            ensureUser(osmAdminRole);
 
-            RoleDTO userRoleDto = new RoleDTO();
-            userRoleDto.setRoleName("OSMUSER");
-            userRoleDto.setPermissions(Set.of(readReception, writeReception));
-            RoleDTO userRole = roleService.save(userRoleDto);
-
-
-            // Create user user
-            OSMUserDTO user = new OSMUserDTO();
-            user.setUsername("user");
-            user.setPassword(passwordEncoder.encode("user123"));
-            user.setEmail("user@example.com");
-            user.setPhoneNumber("123456789");
-            user.setRole(userRole);
-            user.setLocked(false); // not locked
-            userService.save(user);
-
-
-            RoleDTO osmAdminRoleDto = new RoleDTO();
-            osmAdminRoleDto.setRoleName("OSMADMIN");
-            osmAdminRoleDto.setPermissions(Set.of(readReception, writeReception));
-            RoleDTO osmAdminRole = roleService.save(osmAdminRoleDto);
-
-
-            OSMUserDTO osmAdmin = new OSMUserDTO();
-            osmAdmin.setUsername("osmAdmin");
-            osmAdmin.setPassword(passwordEncoder.encode("osmAdmin123"));
-            osmAdmin.setEmail("osmAdmin@example.com");
-            osmAdmin.setPhoneNumber("1234567819");
-            osmAdmin.setRole(osmAdminRole);
-            osmAdmin.setLocked(false);
-            userService.save(osmAdmin);
+            log.info("✅ Bootstrap terminé (aucune duplication si déjà existant).");
         };
     }
 
+    // ========================================================================
+    // Helpers
+    // ========================================================================
+
+
+    private RoleDTO ensureRole() {
+        Optional<Role> existing = roleRepository.findByRoleName(OSMADMIN);
+        if (existing.isPresent()) {
+            Role r = existing.get();
+            log.debug("✓ Rôle '{}' existe déjà (id={})", r.getRoleName(), r.getId());
+            RoleDTO dto = new RoleDTO();
+            dto.setId(r.getId());
+            dto.setRoleName(r.getRoleName());
+            return dto;
+        }
+
+        log.info("＋ Création rôle '{}'", OSMADMIN);
+        RoleDTO dto = new RoleDTO();
+        dto.setRoleName(OSMADMIN);
+         return roleService.save(dto);
+    }
+
+    private void ensureUser(RoleDTO role) {
+        Optional<OSMUser> existing = userRepository.findByUsername(OSM_ADMIN);
+        if (existing.isPresent()) {
+            log.debug("✓ Utilisateur '{}' déjà existant (id={})", OSM_ADMIN, existing.get().getId());
+            return;
+        }
+
+        log.info("＋ Création utilisateur '{}'", OSM_ADMIN);
+        OSMUserDTO dto = new OSMUserDTO();
+        dto.setUsername(OSM_ADMIN);
+        dto.setPassword(passwordEncoder.encode(RAW_PASSWORD1));
+        dto.setEmail(MAIL1);
+        dto.setPhoneNumber(NUMBER1);
+        dto.setRole(role);
+        dto.setLocked(false);
+        userService.save(dto);
+    }
 }

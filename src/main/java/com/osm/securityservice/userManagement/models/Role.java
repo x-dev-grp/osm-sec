@@ -1,11 +1,9 @@
 package com.osm.securityservice.userManagement.models;
 
 import com.xdev.xdevbase.entities.BaseEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.ManyToMany;
+import jakarta.persistence.*;
 import org.hibernate.envers.Audited;
+import org.hibernate.annotations.BatchSize;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -18,9 +16,13 @@ public class Role extends BaseEntity {
     private String roleName;
     private String description;
 
-    @ManyToMany(fetch = FetchType.EAGER)
-    private Set<Permission> permissions = new HashSet<Permission>();
-
+    @ManyToMany(fetch = FetchType.EAGER) // pas de cascade
+    @JoinTable(
+            name = "role_permissions",
+            joinColumns = @JoinColumn(name = "role_id", referencedColumnName = "id"),
+            inverseJoinColumns = @JoinColumn(name = "permissions_id", referencedColumnName = "id") // ← nom DB
+    )
+    private Set<Permission> permissions = new HashSet<>();
     public String getDescription() {
         return description;
     }
@@ -42,6 +44,7 @@ public class Role extends BaseEntity {
     }
 
     public void setPermissions(Set<Permission> permissions) {
-        this.permissions = permissions;
+        this.permissions.clear();
+        if (permissions != null) this.permissions.addAll(permissions);
     }
 }

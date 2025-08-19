@@ -253,7 +253,13 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
                     MailRequest mailRequest = new MailRequest();
                     mailRequest.setTo(userDTO.getEmail());
                     mailRequest.setSubject("Compte OSM");
-                    mailRequest.setBody(String.format("Username: %s\nPassword: %s", userDTO.getUsername(), rawPassword));
+                    mailRequest.setBody(
+
+                            "Welcome to OSM\n\n" +
+                                    "Username: " + userDTO.getUsername() + "\n" +
+                                    "Temporary password: " + rawPassword + "\n\n" +
+                                    "If you didn’t request this account, please ignore this email"
+                    );
                     mailService.sendEmail(mailRequest);
 
                     OSMLogger.logSecurityEvent(this.getClass(), "CONFIRMATION_EMAIL_SENT",
