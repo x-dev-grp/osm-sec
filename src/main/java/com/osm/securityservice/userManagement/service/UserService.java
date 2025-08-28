@@ -562,7 +562,7 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
     public Set<Action> actionsMapping(OSMUser user) {
         Set<Action> actions = new HashSet<>();
         actions.add(Action.READ);
-        if (user.getRole().getRoleName().equals("ADMIN")) {
+        if (!user.getRole().getRoleName().equals("ADMIN")) {
             actions.addAll(Set.of(Action.UPDATE, Action.CREATE,Action.DELETE));
         }
         return actions;
