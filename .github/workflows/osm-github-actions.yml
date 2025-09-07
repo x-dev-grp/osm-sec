@@ -3,6 +3,7 @@ name: Build & Deploy (main)
 on:
   push:
     branches: [ main ]
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -20,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Map repo -> service name & port (your values)
+      # Map repo -> image name + port (EDIT HERE if any port changes)
       - name: Derive service metadata
         id: meta
         run: |
@@ -46,28 +47,32 @@ jobs:
         if: steps.meta.outputs.skip_build == 'true'
         run: echo "Skipping parent/pom-only repo."
 
-      # Create ~/.m2/settings.xml with credentials for GitHub Packages (id=github)
-      - name: Prepare Maven settings.xml
+      # Create a valid settings.xml and pass it as a BuildKit secret
+      - name: Generate Maven settings.xml
         if: steps.meta.outputs.skip_build != 'true'
         run: |
-          mkdir -p ~/.m2
-          # Prefer a classic PAT with read:packages if provided; else fall back to GITHUB_TOKEN
-          GH_TOKEN="${{ secrets.GH_PACKAGES_TOKEN }}"
-          if [ -z "$GH_TOKEN" ]; then GH_TOKEN="${{ github.token }}"; fi
-          cat > ~/.m2/settings.xml <<XML
-          <settings>
+          mkdir -p "$RUNNER_TEMP"
+          cat > "$RUNNER_TEMP/maven_settings.xml" <<'XML'
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                    xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
             <servers>
               <server>
                 <id>github</id>
-                <username>${{ github.actor }}</username>
-                <password>${GH_TOKEN}</password>
+                <username>${env.GH_USER}</username>
+                <password>${env.GH_TOKEN}</password>
               </server>
             </servers>
           </settings>
           XML
-          echo "Created ~/.m2/settings.xml"
+          head -n1 "$RUNNER_TEMP/maven_settings.xml"
+        env:
+          GH_USER: ${{ github.actor }}
+          # If you added a classic PAT with read:packages, put it in GH_PACKAGES_TOKEN;
+          # otherwise we’ll use the built-in token.
+          GH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN || github.token }}
 
-      - name: Set up Docker Buildx
+      - name: Set up Buildx
         if: steps.meta.outputs.skip_build != 'true'
         uses: docker/setup-buildx-action@v3
 
@@ -77,7 +82,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ env.OWNER }}
-          password: ${{ github.token }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build & Push image (BuildKit + Maven secret)
         if: steps.meta.outputs.skip_build != 'true'
@@ -87,11 +92,11 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ env.OWNER }}/${{ steps.meta.outputs.service_name }}:main-${{ github.sha }}
-            ghcr.io/${{ env.OWNER }}/${{ steps.meta.outputs.service_name }}:main-latest
+            ghcr.io/${{ env.OWNER }}/${{ steps.meta.outputs.service_name }}:release-latest
           build-args: |
             SERVICE_PORT=${{ steps.meta.outputs.service_port }}
           secrets: |
-            maven_settings=${{ env.HOME }}/.m2/settings.xml
+            id=maven_settings,src=${{ runner.temp }}/maven_settings.xml
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
