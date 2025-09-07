@@ -4,6 +4,10 @@ on:
   push:
     branches: [ main ]
 
+permissions:
+  contents: read
+  packages: write
+
 env:
   REGISTRY: ghcr.io
   OWNER: ${{ github.repository_owner }}
@@ -16,88 +20,80 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Derive service metadata from repo name
+      # Map repo -> service name & port (your values)
+      - name: Derive service metadata
         id: meta
         run: |
           REPO="${GITHUB_REPOSITORY##*/}"
-          # default values
           SERVICE_NAME=""
           SERVICE_PORT="8080"
           SKIP_BUILD="false"
-
           case "$REPO" in
-            osm-sec)
-              SERVICE_NAME="securityservice"
-              SERVICE_PORT="8088"
-              ;;
-            osm-fin)
-              SERVICE_NAME="financeservice"
-              SERVICE_PORT="8085"
-              ;;
-            osm-prod)
-              SERVICE_NAME="oilproductionservice"
-              SERVICE_PORT="8083"
-              ;;
-            osm-hr)
-              SERVICE_NAME="hrservice"
-              SERVICE_PORT="8086"
-              ;;
-            osm-gateway)
-              SERVICE_NAME="gateway"
-              SERVICE_PORT="8084"
-              ;;
-            osm-eureka)
-              SERVICE_NAME="eureka"
-              SERVICE_PORT="8761"
-              ;;
-            osm-parent)
-              # parent/pom-only; nothing to containerize
-              SKIP_BUILD="true"
-              ;;
-            *)
-              echo "Unknown repository mapping: $REPO"
-              exit 1
-              ;;
+            osm-sec)     SERVICE_NAME="securityservice";      SERVICE_PORT="8088" ;;
+            osm-fin)     SERVICE_NAME="financeservice";        SERVICE_PORT="8085" ;;
+            osm-prod)    SERVICE_NAME="oilproductionservice";  SERVICE_PORT="8083" ;;
+            osm-hr)      SERVICE_NAME="hrservice";             SERVICE_PORT="8086" ;;
+            osm-gateway) SERVICE_NAME="gateway";               SERVICE_PORT="8084" ;;
+            osm-eureka)  SERVICE_NAME="eureka";                SERVICE_PORT="8761" ;;
+            osm-parent)  SKIP_BUILD="true" ;;
+            *) echo "Unknown repository: $REPO" && exit 1 ;;
           esac
-
           echo "service_name=$SERVICE_NAME" >> $GITHUB_OUTPUT
           echo "service_port=$SERVICE_PORT" >> $GITHUB_OUTPUT
           echo "skip_build=$SKIP_BUILD" >> $GITHUB_OUTPUT
 
-      - name: Stop if build is skipped for this repo
+      - name: Stop if build is skipped
         if: steps.meta.outputs.skip_build == 'true'
-        run: echo "Skipping build for this repo (parent/pom-only)."
+        run: echo "Skipping parent/pom-only repo."
 
-      - name: Set up JDK 21
+      # Create ~/.m2/settings.xml with credentials for GitHub Packages (id=github)
+      - name: Prepare Maven settings.xml
         if: steps.meta.outputs.skip_build != 'true'
-        uses: actions/setup-java@v4
+        run: |
+          mkdir -p ~/.m2
+          # Prefer a classic PAT with read:packages if provided; else fall back to GITHUB_TOKEN
+          GH_TOKEN="${{ secrets.GH_PACKAGES_TOKEN }}"
+          if [ -z "$GH_TOKEN" ]; then GH_TOKEN="${{ github.token }}"; fi
+          cat > ~/.m2/settings.xml <<XML
+          <settings>
+            <servers>
+              <server>
+                <id>github</id>
+                <username>${{ github.actor }}</username>
+                <password>${GH_TOKEN}</password>
+              </server>
+            </servers>
+          </settings>
+          XML
+          echo "Created ~/.m2/settings.xml"
+
+      - name: Set up Docker Buildx
+        if: steps.meta.outputs.skip_build != 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        if: steps.meta.outputs.skip_build != 'true'
+        uses: docker/login-action@v3
         with:
-          distribution: temurin
-          java-version: '21'
+          registry: ghcr.io
+          username: ${{ env.OWNER }}
+          password: ${{ github.token }}
 
-      - name: Docker login to GHCR
+      - name: Build & Push image (BuildKit + Maven secret)
         if: steps.meta.outputs.skip_build != 'true'
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $OWNER --password-stdin
-
-      - name: Build image
-        if: steps.meta.outputs.skip_build != 'true'
-        run: |
-          IMAGE=${{ env.REGISTRY }}/${{ env.OWNER }}/${{ steps.meta.outputs.service_name }}
-          TAG_SHA=main-${GITHUB_SHA::7}
-          # Build from repository root (service lives at repo root)
-          docker build \
-            --build-arg SERVICE_PORT=${{ steps.meta.outputs.service_port }} \
-            -t $IMAGE:$TAG_SHA \
-            -t $IMAGE:main-latest \
-            .
-
-      - name: Push image
-        if: steps.meta.outputs.skip_build != 'true'
-        run: |
-          IMAGE=${{ env.REGISTRY }}/${{ env.OWNER }}/${{ steps.meta.outputs.service_name }}
-          TAG_SHA=main-${GITHUB_SHA::7}
-          docker push $IMAGE:$TAG_SHA
-          docker push $IMAGE:main-latest
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ env.OWNER }}/${{ steps.meta.outputs.service_name }}:main-${{ github.sha }}
+            ghcr.io/${{ env.OWNER }}/${{ steps.meta.outputs.service_name }}:main-latest
+          build-args: |
+            SERVICE_PORT=${{ steps.meta.outputs.service_port }}
+          secrets: |
+            maven_settings=${{ env.HOME }}/.m2/settings.xml
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   deploy:
     name: Deploy to VPS
