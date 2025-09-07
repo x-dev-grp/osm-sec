@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Map repo -> image name + port (EDIT HERE if any port changes)
+      # Map repo -> image name + port
       - name: Derive service metadata
         id: meta
         run: |
@@ -47,8 +47,8 @@ jobs:
         if: steps.meta.outputs.skip_build == 'true'
         run: echo "Skipping parent/pom-only repo."
 
-      # Create a valid settings.xml and pass it as a BuildKit secret
-      - name: Generate Maven settings.xml
+      # 1) Create a valid settings.xml with GitHub Packages repos
+      - name: Generate Maven settings.xml (with GitHub Packages profile)
         if: steps.meta.outputs.skip_build != 'true'
         run: |
           mkdir -p "$RUNNER_TEMP"
@@ -63,15 +63,41 @@ jobs:
                 <password>${env.GH_TOKEN}</password>
               </server>
             </servers>
+            <profiles>
+              <profile>
+                <id>github-packages</id>
+                <repositories>
+                  <repository>
+                    <id>github</id>
+                    <name>GitHub Packages osm-parent</name>
+                    <url>https://maven.pkg.github.com/x-dev-grp/osm-parent</url>
+                  </repository>
+                </repositories>
+                <pluginRepositories>
+                  <pluginRepository>
+                    <id>github</id>
+                    <name>GitHub Packages Plugins</name>
+                    <url>https://maven.pkg.github.com/x-dev-grp/osm-parent</url>
+                  </pluginRepository>
+                </pluginRepositories>
+              </profile>
+            </profiles>
+            <activeProfiles>
+              <activeProfile>github-packages</activeProfile>
+            </activeProfiles>
           </settings>
           XML
           head -n1 "$RUNNER_TEMP/maven_settings.xml"
         env:
           GH_USER: ${{ github.actor }}
-          # If you added a classic PAT with read:packages, put it in GH_PACKAGES_TOKEN;
-          # otherwise we’ll use the built-in token.
           GH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN || github.token }}
 
+      # 2) Preflight resolve on the runner (clear diagnostics if something is wrong)
+      - name: Preflight dependency resolve (runner)
+        if: steps.meta.outputs.skip_build != 'true'
+        run: mvn -B -s "$RUNNER_TEMP/maven_settings.xml" -DskipTests -U dependency:go-offline
+
+      # 3) Build & push image with BuildKit secret
       - name: Set up Buildx
         if: steps.meta.outputs.skip_build != 'true'
         uses: docker/setup-buildx-action@v3
