@@ -1,9 +1,8 @@
 name: Build & Deploy (main)
 
 on:
-  push:
-    branches: [ main ]
-  workflow_dispatch: {}
+  push: { branches: [ main ] }
+  workflow_dispatch: { }
 
 permissions:
   contents: read
@@ -21,34 +20,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Map repo -> image name & port
+      # Map repo -> service & port
       - name: Derive service metadata
         id: meta
         run: |
           REPO="${GITHUB_REPOSITORY##*/}"
-          SERVICE_NAME=""
-          SERVICE_PORT="8080"
-          SKIP_BUILD="false"
           case "$REPO" in
-            osm-sec)     SERVICE_NAME="securityservice";      SERVICE_PORT="8088" ;;
-            osm-fin)     SERVICE_NAME="financeservice";        SERVICE_PORT="8085" ;;
-            osm-prod)    SERVICE_NAME="oilproductionservice";  SERVICE_PORT="8083" ;;
-            osm-hr)      SERVICE_NAME="hrservice";             SERVICE_PORT="8086" ;;
-            osm-gateway) SERVICE_NAME="gateway";               SERVICE_PORT="8084" ;;
-            osm-eureka)  SERVICE_NAME="eureka";                SERVICE_PORT="8761" ;;
-            osm-parent)  SKIP_BUILD="true" ;;
-            *) echo "Unknown repository: $REPO" && exit 1 ;;
+            osm-sec)     echo "service_name=securityservice"      >> $GITHUB_OUTPUT; echo "service_port=8088" >> $GITHUB_OUTPUT ;;
+            osm-fin)     echo "service_name=financeservice"        >> $GITHUB_OUTPUT; echo "service_port=8085" >> $GITHUB_OUTPUT ;;
+            osm-prod)    echo "service_name=oilproductionservice"  >> $GITHUB_OUTPUT; echo "service_port=8083" >> $GITHUB_OUTPUT ;;
+            osm-hr)      echo "service_name=hrservice"             >> $GITHUB_OUTPUT; echo "service_port=8086" >> $GITHUB_OUTPUT ;;
+            osm-gateway) echo "service_name=gateway"               >> $GITHUB_OUTPUT; echo "service_port=8084" >> $GITHUB_OUTPUT ;;
+            osm-eureka)  echo "service_name=eureka"                >> $GITHUB_OUTPUT; echo "service_port=8761" >> $GITHUB_OUTPUT ;;
+            osm-parent)  echo "skip_build=true"                    >> $GITHUB_OUTPUT ;;
+            *) echo "Unknown repository: $REPO"; exit 1 ;;
           esac
-          echo "service_name=$SERVICE_NAME"   >> $GITHUB_OUTPUT
-          echo "service_port=$SERVICE_PORT"   >> $GITHUB_OUTPUT
-          echo "skip_build=$SKIP_BUILD"       >> $GITHUB_OUTPUT
 
       - name: Stop if build is skipped
         if: steps.meta.outputs.skip_build == 'true'
-        run: echo "Skipping parent/pom-only repo."
+        run: echo "Skipping parent repo."
 
-      # Ensure mvn is available for the preflight step
-      - name: Set up JDK 21 (for mvn preflight)
+      - name: Set up JDK 21
         if: steps.meta.outputs.skip_build != 'true'
         uses: actions/setup-java@v4
         with:
@@ -60,54 +52,28 @@ jobs:
         if: steps.meta.outputs.skip_build != 'true'
         run: |
           mkdir -p "$RUNNER_TEMP"
-          TOKEN="${{ secrets.GH_PACKAGES_TOKEN }}"
-          if [ -z "$TOKEN" ]; then TOKEN="${{ github.token }}"; fi
+          TOKEN="${{ secrets.GH_PACKAGES_TOKEN || github.token }}"
           cat > "$RUNNER_TEMP/maven_settings.xml" <<EOF
           <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
-                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                    xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
-            <servers>
-              <server>
-                <id>github</id>
-                <username>${{ github.actor }}</username>
-                <password>${TOKEN}</password>
-              </server>
-            </servers>
-            <profiles>
-              <profile>
-                <id>github-packages</id>
-                <repositories>
-                  <repository>
-                    <id>github</id>
-                    <url>https://maven.pkg.github.com/x-dev-grp/osm-parent</url>
-                    <snapshots><enabled>true</enabled></snapshots>
-                  </repository>
-                </repositories>
-                <pluginRepositories>
-                  <pluginRepository>
-                    <id>github</id>
-                    <url>https://maven.pkg.github.com/x-dev-grp/osm-parent</url>
-                    <snapshots><enabled>true</enabled></snapshots>
-                  </pluginRepository>
-                </pluginRepositories>
-              </profile>
-            </profiles>
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
+            <servers><server><id>github</id><username>${{ github.actor }}</username><password>${TOKEN}</password></server></servers>
+            <profiles><profile><id>github-packages</id>
+              <repositories><repository><id>github</id><url>https://maven.pkg.github.com/x-dev-grp/osm-parent</url><snapshots><enabled>true</enabled></snapshots></repository></repositories>
+              <pluginRepositories><pluginRepository><id>github</id><url>https://maven.pkg.github.com/x-dev-grp/osm-parent</url><snapshots><enabled>true</enabled></snapshots></pluginRepository></pluginRepositories>
+            </profile></profiles>
             <activeProfiles><activeProfile>github-packages</activeProfile></activeProfiles>
           </settings>
           EOF
-          head -n1 "$RUNNER_TEMP/maven_settings.xml"
 
-      # Optional but helpful: fail early with a clear Maven error before Docker
-      - name: Preflight dependency resolve on runner
+      - name: Preflight resolve
         if: steps.meta.outputs.skip_build != 'true'
         run: mvn -B -s "$RUNNER_TEMP/maven_settings.xml" -DskipTests -U dependency:go-offline
 
-      # Set up buildx (builder) for CLI use
       - name: Set up Buildx
         if: steps.meta.outputs.skip_build != 'true'
         uses: docker/setup-buildx-action@v3
-        with:
-          install: true
+        with: { install: true }
 
       - name: Login to GHCR
         if: steps.meta.outputs.skip_build != 'true'
@@ -117,31 +83,23 @@ jobs:
           username: ${{ env.OWNER }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Use CLI 'docker buildx build' and pass the secret explicitly
-      - name: Build & Push image (CLI + BuildKit secret)
+      - name: Build & Push image
         if: steps.meta.outputs.skip_build != 'true'
         env:
           IMAGE: ghcr.io/${{ env.OWNER }}/${{ steps.meta.outputs.service_name }}
           TAG_SHA: main-${{ github.sha }}
           SERVICE_PORT: ${{ steps.meta.outputs.service_port }}
         run: |
-          set -eux
-          docker buildx version
           docker buildx build \
-            --progress=plain \
-            --push \
-            --platform linux/amd64 \
+            --progress=plain --push --platform linux/amd64 \
             --build-arg SERVICE_PORT="${SERVICE_PORT}" \
             --secret id=maven_settings,src="${RUNNER_TEMP}/maven_settings.xml" \
-            -t "${IMAGE}:${TAG_SHA}" \
-            -t "${IMAGE}:release-latest" \
-            .
+            -t "${IMAGE}:${TAG_SHA}" -t "${IMAGE}:release-latest" .
 
   deploy:
-    name: Deploy to VPS
     needs: build-push
-    runs-on: ubuntu-latest
     if: needs.build-push.result == 'success'
+    runs-on: ubuntu-latest
     steps:
       - name: Start ssh-agent
         uses: webfactory/ssh-agent@v0.9.0
@@ -153,6 +111,8 @@ jobs:
 
       - name: Pull & Restart stack
         env:
-          # PAT with read:packages if your GHCR images are private
-          GHCR_PAT: ${{ secrets.GH_PACKAGES_TOKEN }}
-        run: ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} 'GHCR_PAT="$GHCR_PAT" /opt/osm/scripts/deploy.sh'
+          GHCR_USER: ${{ secrets.GHCR_USER }}     # e.g. org or bot user
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}      # PAT with read:packages
+        run: |
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
+            "export GHCR_USER='$GHCR_USER' GHCR_PAT='$GHCR_PAT'; bash /opt/osm/scripts/deploy.sh"
