@@ -47,6 +47,14 @@ jobs:
         if: steps.meta.outputs.skip_build == 'true'
         run: echo "Skipping parent/pom-only repo."
 
+      # Ensure mvn is available for the preflight step
+      - name: Set up JDK 21 (for mvn preflight)
+        if: steps.meta.outputs.skip_build != 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
       # Render a REAL settings.xml with concrete creds and GH Packages repos
       - name: Generate Maven settings.xml (rendered)
         if: steps.meta.outputs.skip_build != 'true'
@@ -87,14 +95,12 @@ jobs:
             <activeProfiles><activeProfile>github-packages</activeProfile></activeProfiles>
           </settings>
           EOF
-          # sanity: show first line
           head -n1 "$RUNNER_TEMP/maven_settings.xml"
 
       # Optional but helpful: fail early with a clear Maven error before Docker
       - name: Preflight dependency resolve on runner
         if: steps.meta.outputs.skip_build != 'true'
-        run: |
-          mvn -B -s "$RUNNER_TEMP/maven_settings.xml" -DskipTests -U dependency:go-offline
+        run: mvn -B -s "$RUNNER_TEMP/maven_settings.xml" -DskipTests -U dependency:go-offline
 
       # Set up buildx (builder) for CLI use
       - name: Set up Buildx
@@ -121,7 +127,6 @@ jobs:
         run: |
           set -eux
           docker buildx version
-          # build & push in one step; ensure BuildKit secret is passed
           docker buildx build \
             --progress=plain \
             --push \
@@ -138,7 +143,7 @@ jobs:
     runs-on: ubuntu-latest
     if: needs.build-push.result == 'success'
     steps:
-      - name: SSH agent
+      - name: Start ssh-agent
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -147,4 +152,7 @@ jobs:
         run: ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
 
       - name: Pull & Restart stack
-        run: ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} '/opt/osm/scripts/deploy.sh'
+        env:
+          # PAT with read:packages if your GHCR images are private
+          GHCR_PAT: ${{ secrets.GH_PACKAGES_TOKEN }}
+        run: ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} 'GHCR_PAT="$GHCR_PAT" /opt/osm/scripts/deploy.sh'
