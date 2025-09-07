@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Map repo -> image name + port (edit if ports change)
+      # Map repo -> image name + port
       - name: Derive service metadata
         id: meta
         run: |
@@ -47,8 +47,8 @@ jobs:
         if: steps.meta.outputs.skip_build == 'true'
         run: echo "Skipping parent/pom-only repo."
 
-      # Create a REAL settings.xml (renders actual username/token)
-      - name: Generate Maven settings.xml (rendered with creds)
+      # Write a REAL settings.xml with concrete creds + GH Packages repos
+      - name: Generate Maven settings.xml (rendered)
         if: steps.meta.outputs.skip_build != 'true'
         run: |
           mkdir -p "$RUNNER_TEMP"
@@ -71,7 +71,6 @@ jobs:
                 <repositories>
                   <repository>
                     <id>github</id>
-                    <name>GitHub Packages osm-parent</name>
                     <url>https://maven.pkg.github.com/x-dev-grp/osm-parent</url>
                     <snapshots><enabled>true</enabled></snapshots>
                   </repository>
@@ -79,21 +78,18 @@ jobs:
                 <pluginRepositories>
                   <pluginRepository>
                     <id>github</id>
-                    <name>GitHub Packages Plugins</name>
                     <url>https://maven.pkg.github.com/x-dev-grp/osm-parent</url>
                     <snapshots><enabled>true</enabled></snapshots>
                   </pluginRepository>
                 </pluginRepositories>
               </profile>
             </profiles>
-            <activeProfiles>
-              <activeProfile>github-packages</activeProfile>
-            </activeProfiles>
+            <activeProfiles><activeProfile>github-packages</activeProfile></activeProfiles>
           </settings>
           EOF
           head -n1 "$RUNNER_TEMP/maven_settings.xml"
 
-      # Preflight resolve on the runner for clearer errors (optional but very helpful)
+      # Optional but helpful: fail early with a clear Maven error if auth/URL is wrong
       - name: Preflight dependency resolve on runner
         if: steps.meta.outputs.skip_build != 'true'
         run: mvn -B -s "$RUNNER_TEMP/maven_settings.xml" -DskipTests -U dependency:go-offline
