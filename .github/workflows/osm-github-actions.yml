@@ -1,0 +1,117 @@
+name: Build & Deploy (main)
+
+on:
+  push:
+    branches: [ main ]
+
+env:
+  REGISTRY: ghcr.io
+  OWNER: ${{ github.repository_owner }}
+
+jobs:
+  build-push:
+    name: Build & Push Docker image
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Derive service metadata from repo name
+        id: meta
+        run: |
+          REPO="${GITHUB_REPOSITORY##*/}"
+          # default values
+          SERVICE_NAME=""
+          SERVICE_PORT="8080"
+          SKIP_BUILD="false"
+
+          case "$REPO" in
+            osm-sec)
+              SERVICE_NAME="securityservice"
+              SERVICE_PORT="8088"
+              ;;
+            osm-fin)
+              SERVICE_NAME="financeservice"
+              SERVICE_PORT="8085"
+              ;;
+            osm-prod)
+              SERVICE_NAME="oilproductionservice"
+              SERVICE_PORT="8083"
+              ;;
+            osm-hr)
+              SERVICE_NAME="hrservice"
+              SERVICE_PORT="8086"
+              ;;
+            osm-gateway)
+              SERVICE_NAME="gateway"
+              SERVICE_PORT="8084"
+              ;;
+            osm-eureka)
+              SERVICE_NAME="eureka"
+              SERVICE_PORT="8761"
+              ;;
+            osm-parent)
+              # parent/pom-only; nothing to containerize
+              SKIP_BUILD="true"
+              ;;
+            *)
+              echo "Unknown repository mapping: $REPO"
+              exit 1
+              ;;
+          esac
+
+          echo "service_name=$SERVICE_NAME" >> $GITHUB_OUTPUT
+          echo "service_port=$SERVICE_PORT" >> $GITHUB_OUTPUT
+          echo "skip_build=$SKIP_BUILD" >> $GITHUB_OUTPUT
+
+      - name: Stop if build is skipped for this repo
+        if: steps.meta.outputs.skip_build == 'true'
+        run: echo "Skipping build for this repo (parent/pom-only)."
+
+      - name: Set up JDK 21
+        if: steps.meta.outputs.skip_build != 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Docker login to GHCR
+        if: steps.meta.outputs.skip_build != 'true'
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $OWNER --password-stdin
+
+      - name: Build image
+        if: steps.meta.outputs.skip_build != 'true'
+        run: |
+          IMAGE=${{ env.REGISTRY }}/${{ env.OWNER }}/${{ steps.meta.outputs.service_name }}
+          TAG_SHA=main-${GITHUB_SHA::7}
+          # Build from repository root (service lives at repo root)
+          docker build \
+            --build-arg SERVICE_PORT=${{ steps.meta.outputs.service_port }} \
+            -t $IMAGE:$TAG_SHA \
+            -t $IMAGE:main-latest \
+            .
+
+      - name: Push image
+        if: steps.meta.outputs.skip_build != 'true'
+        run: |
+          IMAGE=${{ env.REGISTRY }}/${{ env.OWNER }}/${{ steps.meta.outputs.service_name }}
+          TAG_SHA=main-${GITHUB_SHA::7}
+          docker push $IMAGE:$TAG_SHA
+          docker push $IMAGE:main-latest
+
+  deploy:
+    name: Deploy to VPS
+    needs: build-push
+    runs-on: ubuntu-latest
+    if: needs.build-push.result == 'success'
+    steps:
+      - name: SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add VPS to known_hosts
+        run: ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Pull & Restart stack
+        run: ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} '/opt/osm/scripts/deploy.sh'
