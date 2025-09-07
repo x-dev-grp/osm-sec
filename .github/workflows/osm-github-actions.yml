@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Map repo -> image name + port
+      # Map repo -> image name + port (edit if ports change)
       - name: Derive service metadata
         id: meta
         run: |
@@ -39,28 +39,30 @@ jobs:
             osm-parent)  SKIP_BUILD="true" ;;
             *) echo "Unknown repository: $REPO" && exit 1 ;;
           esac
-          echo "service_name=$SERVICE_NAME" >> $GITHUB_OUTPUT
-          echo "service_port=$SERVICE_PORT" >> $GITHUB_OUTPUT
-          echo "skip_build=$SKIP_BUILD" >> $GITHUB_OUTPUT
+          echo "service_name=$SERVICE_NAME"   >> $GITHUB_OUTPUT
+          echo "service_port=$SERVICE_PORT"   >> $GITHUB_OUTPUT
+          echo "skip_build=$SKIP_BUILD"       >> $GITHUB_OUTPUT
 
       - name: Stop if build is skipped
         if: steps.meta.outputs.skip_build == 'true'
         run: echo "Skipping parent/pom-only repo."
 
-      # 1) Create a valid settings.xml with GitHub Packages repos
-      - name: Generate Maven settings.xml (with GitHub Packages profile)
+      # Create a REAL settings.xml (renders actual username/token)
+      - name: Generate Maven settings.xml (rendered with creds)
         if: steps.meta.outputs.skip_build != 'true'
         run: |
           mkdir -p "$RUNNER_TEMP"
-          cat > "$RUNNER_TEMP/maven_settings.xml" <<'XML'
+          TOKEN="${{ secrets.GH_PACKAGES_TOKEN }}"
+          if [ -z "$TOKEN" ]; then TOKEN="${{ github.token }}"; fi
+          cat > "$RUNNER_TEMP/maven_settings.xml" <<EOF
           <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
                     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                     xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 https://maven.apache.org/xsd/settings-1.0.0.xsd">
             <servers>
               <server>
                 <id>github</id>
-                <username>${env.GH_USER}</username>
-                <password>${env.GH_TOKEN}</password>
+                <username>${{ github.actor }}</username>
+                <password>${TOKEN}</password>
               </server>
             </servers>
             <profiles>
@@ -71,6 +73,7 @@ jobs:
                     <id>github</id>
                     <name>GitHub Packages osm-parent</name>
                     <url>https://maven.pkg.github.com/x-dev-grp/osm-parent</url>
+                    <snapshots><enabled>true</enabled></snapshots>
                   </repository>
                 </repositories>
                 <pluginRepositories>
@@ -78,6 +81,7 @@ jobs:
                     <id>github</id>
                     <name>GitHub Packages Plugins</name>
                     <url>https://maven.pkg.github.com/x-dev-grp/osm-parent</url>
+                    <snapshots><enabled>true</enabled></snapshots>
                   </pluginRepository>
                 </pluginRepositories>
               </profile>
@@ -86,18 +90,14 @@ jobs:
               <activeProfile>github-packages</activeProfile>
             </activeProfiles>
           </settings>
-          XML
+          EOF
           head -n1 "$RUNNER_TEMP/maven_settings.xml"
-        env:
-          GH_USER: ${{ github.actor }}
-          GH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN || github.token }}
 
-      # 2) Preflight resolve on the runner (clear diagnostics if something is wrong)
-      - name: Preflight dependency resolve (runner)
+      # Preflight resolve on the runner for clearer errors (optional but very helpful)
+      - name: Preflight dependency resolve on runner
         if: steps.meta.outputs.skip_build != 'true'
         run: mvn -B -s "$RUNNER_TEMP/maven_settings.xml" -DskipTests -U dependency:go-offline
 
-      # 3) Build & push image with BuildKit secret
       - name: Set up Buildx
         if: steps.meta.outputs.skip_build != 'true'
         uses: docker/setup-buildx-action@v3
