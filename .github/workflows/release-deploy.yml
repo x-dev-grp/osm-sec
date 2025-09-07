@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Map repo -> image name + port
+      # Map repo -> image name & port
       - name: Derive service metadata
         id: meta
         run: |
@@ -47,7 +47,7 @@ jobs:
         if: steps.meta.outputs.skip_build == 'true'
         run: echo "Skipping parent/pom-only repo."
 
-      # Write a REAL settings.xml with concrete creds + GH Packages repos
+      # Render a REAL settings.xml with concrete creds and GH Packages repos
       - name: Generate Maven settings.xml (rendered)
         if: steps.meta.outputs.skip_build != 'true'
         run: |
@@ -87,16 +87,21 @@ jobs:
             <activeProfiles><activeProfile>github-packages</activeProfile></activeProfiles>
           </settings>
           EOF
+          # sanity: show first line
           head -n1 "$RUNNER_TEMP/maven_settings.xml"
 
-      # Optional but helpful: fail early with a clear Maven error if auth/URL is wrong
+      # Optional but helpful: fail early with a clear Maven error before Docker
       - name: Preflight dependency resolve on runner
         if: steps.meta.outputs.skip_build != 'true'
-        run: mvn -B -s "$RUNNER_TEMP/maven_settings.xml" -DskipTests -U dependency:go-offline
+        run: |
+          mvn -B -s "$RUNNER_TEMP/maven_settings.xml" -DskipTests -U dependency:go-offline
 
+      # Set up buildx (builder) for CLI use
       - name: Set up Buildx
         if: steps.meta.outputs.skip_build != 'true'
         uses: docker/setup-buildx-action@v3
+        with:
+          install: true
 
       - name: Login to GHCR
         if: steps.meta.outputs.skip_build != 'true'
@@ -106,21 +111,26 @@ jobs:
           username: ${{ env.OWNER }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build & Push image (BuildKit + Maven secret)
+      # Use CLI 'docker buildx build' and pass the secret explicitly
+      - name: Build & Push image (CLI + BuildKit secret)
         if: steps.meta.outputs.skip_build != 'true'
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: |
-            ghcr.io/${{ env.OWNER }}/${{ steps.meta.outputs.service_name }}:main-${{ github.sha }}
-            ghcr.io/${{ env.OWNER }}/${{ steps.meta.outputs.service_name }}:release-latest
-          build-args: |
-            SERVICE_PORT=${{ steps.meta.outputs.service_port }}
-          secrets: |
-            id=maven_settings,src=${{ runner.temp }}/maven_settings.xml
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+        env:
+          IMAGE: ghcr.io/${{ env.OWNER }}/${{ steps.meta.outputs.service_name }}
+          TAG_SHA: main-${{ github.sha }}
+          SERVICE_PORT: ${{ steps.meta.outputs.service_port }}
+        run: |
+          set -eux
+          docker buildx version
+          # build & push in one step; ensure BuildKit secret is passed
+          docker buildx build \
+            --progress=plain \
+            --push \
+            --platform linux/amd64 \
+            --build-arg SERVICE_PORT="${SERVICE_PORT}" \
+            --secret id=maven_settings,src="${RUNNER_TEMP}/maven_settings.xml" \
+            -t "${IMAGE}:${TAG_SHA}" \
+            -t "${IMAGE}:release-latest" \
+            .
 
   deploy:
     name: Deploy to VPS
