@@ -105,3 +105,10 @@ otp:
 app:
   frontend:
     base-url:  ${FRONTEND_ENTRY_POINT:http://localhost:4200}
+management:
+  endpoint:
+    web:
+      exposure:
+        include:*
+    health:
+      show-details: always
