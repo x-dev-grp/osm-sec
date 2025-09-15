@@ -91,3 +91,10 @@ springdoc:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
+management:
+  endpoint:
+    web:
+      exposure:
+        include:*
+    health:
+      show-details: always
