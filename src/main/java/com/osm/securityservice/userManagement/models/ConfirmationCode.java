@@ -2,10 +2,7 @@ package com.osm.securityservice.userManagement.models;
 
 import com.osm.securityservice.userManagement.models.enums.ConfirmationCodeType;
 import com.xdev.xdevbase.entities.BaseEntity;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
+import jakarta.persistence.*;
 import org.hibernate.envers.Audited;
 
 import java.time.LocalDateTime;
@@ -14,6 +11,7 @@ import java.time.LocalDateTime;
 @Audited
 public class ConfirmationCode extends BaseEntity {
     private String code;
+    @Enumerated(EnumType.STRING)
     private ConfirmationCodeType confirmationCodeType;
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
@@ -28,7 +26,7 @@ public class ConfirmationCode extends BaseEntity {
     }
 
     public boolean isExpired() {
-        return this.getLastModifiedDate().plusMinutes(10).isBefore(LocalDateTime.now());
+        return this.getLastModifiedDate().plusMinutes(15).isBefore(LocalDateTime.now());
     }
 
     public ConfirmationCodeType getConfirmationCodeType() {

@@ -5,6 +5,7 @@ import com.osm.securityservice.userManagement.dtos.OUTDTO.ConfirmationCodeDTO;
 import com.osm.securityservice.userManagement.dtos.OUTDTO.OSMUserDTO;
 import com.osm.securityservice.userManagement.dtos.OUTDTO.OSMUserOUTDTO;
 import com.osm.securityservice.userManagement.dtos.OUTDTO.UpdatePasswordDTO;
+import com.osm.securityservice.userManagement.dtos.OUTDTO.VerifyOtpAndSetPasswordRequest;
 import com.osm.securityservice.userManagement.models.ConfirmationCode;
 import com.osm.securityservice.userManagement.models.OSMUser;
 import com.osm.securityservice.userManagement.models.enums.ConfirmationCodeType;
@@ -13,11 +14,11 @@ import com.xdev.mailSender.models.MailRequest;
 import com.xdev.mailSender.services.MailService;
 import com.xdev.xdevbase.config.TenantContext;
 import com.xdev.xdevbase.models.Action;
-import com.xdev.xdevbase.models.Action;
 import com.xdev.xdevbase.repos.BaseRepository;
 import com.xdev.xdevbase.services.impl.BaseServiceImpl;
 import com.xdev.xdevbase.utils.OSMLogger;
 import org.modelmapper.ModelMapper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -27,17 +28,28 @@ import org.springframework.transaction.annotation.Transactional;
 
 import javax.security.auth.login.AccountLockedException;
 import javax.security.auth.login.CredentialExpiredException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.*;
 
 @Service
 public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUTDTO> implements UserDetailsService {
+
+    public static final String ACTIVATE_ACCOUNT_MODE_RESET = "/activate-account?mode=reset";
+    public static final String EMAIL = "&email=";
+    public static final String USER_ID = "&userId=";
+    public static final String ACTIVATE_ACCOUNT_EMAIL = "/activate-account?email=";
     private final UserRepository userRepository;
     private final MailService mailService;
     private final ConfirmationCodeService confirmationCodeService;
     private final PasswordEncoder passwordEncoder;
+    private final UserNotificationService userNotificationService;
 
-    protected UserService(BaseRepository<OSMUser> repository, ModelMapper modelMapper, UserRepository userRepository, MailService mailService, ConfirmationCodeService confirmationCodeService, PasswordEncoder passwordEncoder) {
+    @Value("${app.frontend.base-url:http://localhost:4200}")
+    private String frontendBaseUrl;
+
+    protected UserService(BaseRepository<OSMUser> repository, ModelMapper modelMapper, UserRepository userRepository, MailService mailService, ConfirmationCodeService confirmationCodeService, PasswordEncoder passwordEncoder, UserNotificationService userNotificationService) {
         super(repository, modelMapper);
 
         long startTime = System.currentTimeMillis();
@@ -48,18 +60,18 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
             this.mailService = mailService;
             this.confirmationCodeService = confirmationCodeService;
             this.passwordEncoder = passwordEncoder;
+            this.userNotificationService = userNotificationService;
 
             OSMLogger.logMethodExit(this.getClass(), "UserService", "UserService initialized successfully");
             OSMLogger.logPerformance(this.getClass(), "UserService", startTime, System.currentTimeMillis());
             OSMLogger.logSecurityEvent(this.getClass(), "USER_SERVICE_INITIALIZED",
-                "User service initialized successfully");
+                    "User service initialized successfully");
 
         } catch (Exception e) {
             OSMLogger.logException(this.getClass(), "Error initializing UserService", e);
             throw e;
         }
     }
-
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
@@ -68,22 +80,22 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
 
         try {
             UserDetails userDetails = userRepository.findByUsername(username)
-                .orElseThrow(() -> new UsernameNotFoundException(username));
+                    .orElseThrow(() -> new UsernameNotFoundException(username));
 
             OSMLogger.logMethodExit(this.getClass(), "loadUserByUsername", "User details loaded successfully for: " + username);
             OSMLogger.logPerformance(this.getClass(), "loadUserByUsername", startTime, System.currentTimeMillis());
             OSMLogger.logSecurityEvent(this.getClass(), "USER_DETAILS_LOADED",
-                "User details loaded successfully for username: " + username);
+                    "User details loaded successfully for username: " + username);
 
             return userDetails;
 
         } catch (UsernameNotFoundException e) {
             OSMLogger.logSecurityEvent(this.getClass(), "USER_NOT_FOUND",
-                "User not found during authentication: " + username);
+                    "User not found during authentication: " + username);
             throw e;
         } catch (Exception e) {
             OSMLogger.logException(this.getClass(),
-                "Unexpected error loading user details for username: " + username, e);
+                    "Unexpected error loading user details for username: " + username, e);
             throw e;
         }
     }
@@ -111,72 +123,135 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
             OSMLogger.logMethodExit(this.getClass(), "addUser", "User added successfully: " + username);
             OSMLogger.logPerformance(this.getClass(), "addUser", startTime, System.currentTimeMillis());
             OSMLogger.logSecurityEvent(this.getClass(), "USER_ADDED",
-                "New user added successfully: " + username);
+                    "New user added successfully: " + username);
 
             return modelMapper.map(savedUser, OSMUserOUTDTO.class);
 
         } catch (Exception e) {
             OSMLogger.logException(this.getClass(),
-                "Error adding user: " + username, e);
+                    "Error adding user: " + username, e);
             throw e;
         }
     }
 
     @Transactional
-    public OSMUserOUTDTO updateUser(OSMUserOUTDTO userDTO, UUID id) throws Exception {
-        long startTime = System.currentTimeMillis();
-        String username = userDTO != null ? userDTO.getUsername() : "null";
-        OSMLogger.logMethodEntry(this.getClass(), "updateUser", "Updating user: " + username + " with ID: " + id);
+    public OSMUserOUTDTO createUserPendingConfirmation(OSMUserOUTDTO userDTO) throws Exception {
+        validateUserDTO(userDTO);
+        checkExistUser(userDTO.getUsername(), userDTO.getEmail(), userDTO.getPhoneNumber());
 
-        try {
-            if (id == null) throw new IllegalArgumentException("User ID must not be null");
-
-            validateUserDTO(userDTO);
-
-            OSMUser user = repository.findById(id)
-                    .orElseThrow(() -> new UsernameNotFoundException(id.toString()));
-
-            checkUserToUpdate(user, userDTO.getUsername(), userDTO.getEmail(), userDTO.getPhoneNumber());
-
-            boolean usernameChanged = !Objects.equals(userDTO.getUsername(), user.getUsername());
-            boolean emailChanged = userDTO.getEmail() != null && !Objects.equals(userDTO.getEmail(), user.getEmail());
-            boolean phoneChanged = userDTO.getPhoneNumber() != null && !Objects.equals(userDTO.getPhoneNumber(), user.getPhoneNumber());
-
-            user.setLocked(userDTO.isLocked());
-            user.setFirstName(userDTO.getFirstName());
-            user.setLastName(userDTO.getLastName());
-            user.setUsername(userDTO.getUsername());
-            user.setConfirmationMethod(userDTO.getConfirmationMethod());
-
-            if (userDTO.getEmail() != null) {
-                user.setEmail(userDTO.getEmail());
-            }
-
-            if (userDTO.getPhoneNumber() != null) {
-                user.setPhoneNumber(userDTO.getPhoneNumber());
-            }
-
-            userRepository.save(user);
-
-            if (usernameChanged || emailChanged || phoneChanged) {
-                String rawPassword = generateSecureCode(8);
-                sendConfirmation(userDTO, rawPassword);
-                OSMLogger.logSecurityEvent(this.getClass(), "USER_CREDENTIALS_UPDATED",
-                    "User credentials updated and new password sent: " + username);
-            }
-
-            OSMLogger.logMethodExit(this.getClass(), "updateUser", "User updated successfully: " + username + " with ID: " + id);
-            OSMLogger.logPerformance(this.getClass(), "updateUser", startTime, System.currentTimeMillis());
-            OSMLogger.logSecurityEvent(this.getClass(), "USER_UPDATED",
-                "User updated successfully: " + username + " with ID: " + id);
-
-            return modelMapper.map(user, OSMUserOUTDTO.class);
-
-        } catch (Exception e) {
-            OSMLogger.logException(this.getClass(),
-                "Error updating user: " + username + " with ID: " + id, e);
-            throw e;
+        if (userDTO.getConfirmationMethod() != ConfirmationMethod.EMAIL) {
+            throw new IllegalArgumentException("Seule la confirmation par email est supportée");
         }
+
+        OSMUser user = modelMapper.map(userDTO, OSMUser.class);
+        user.setPassword(null);
+        user.setNewUser(true);
+        user.setEnabled(false);
+        user.setLocked(false);
+        OSMUser savedUser = userRepository.save(user);
+
+        String code = generateRandomCode();
+
+        ConfirmationCode confirmationCode = new ConfirmationCode();
+        confirmationCode.setCode(code);
+        confirmationCode.setUser(savedUser);
+        confirmationCode.setConfirmationCodeType(ConfirmationCodeType.ACCOUNT_ACTIVATION);
+
+        saveActivationConfirmationCode(confirmationCode);
+        String fullName = buildFullName(savedUser.getFirstName(), savedUser.getLastName());
+        String activationLink = buildActivationLink(savedUser.getEmail());
+        userNotificationService.sendAccountActivationOtp(
+                savedUser.getEmail(), fullName, code, activationLink);
+
+        return modelMapper.map(savedUser, OSMUserOUTDTO.class);
+    }
+
+
+    @Transactional
+    public void verifyOtpAndSetPassword(VerifyOtpAndSetPasswordRequest request) throws Exception {
+        if (request == null) {
+            throw new IllegalArgumentException("Requête invalide");
+        }
+        if (request.getEmail() == null || request.getEmail().isBlank()) {
+            throw new IllegalArgumentException("Email obligatoire");
+        }
+        if (request.getCode() == null || request.getCode().isBlank()) {
+            throw new IllegalArgumentException("Code OTP obligatoire");
+        }
+        if (request.getNewPassword() == null || request.getNewPassword().isBlank()) {
+            throw new IllegalArgumentException("Mot de passe obligatoire");
+        }
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            throw new IllegalArgumentException("Les mots de passe ne correspondent pas");
+        }
+
+        OSMUser user = userRepository.findByEmailIgnoreCase(request.getEmail())
+                .orElseThrow(() -> new IllegalArgumentException("Utilisateur introuvable"));
+
+        if (user.isEnabled()) {
+            throw new IllegalArgumentException("Compte déjà activé");
+        }
+
+        ConfirmationCode confirmationCode =
+                confirmationCodeService.getByConfirmationCodeTypeAndUser(
+                        ConfirmationCodeType.ACCOUNT_ACTIVATION,
+                        user
+                );
+
+        if (confirmationCode == null) {
+            throw new IllegalArgumentException("Aucun code OTP trouvé");
+        }
+
+        if (!confirmationCode.getCode().equals(request.getCode())) {
+            throw new IllegalArgumentException("Code OTP invalide");
+        }
+
+        if (confirmationCode.isExpired()) {
+            throw new CredentialExpiredException("Code OTP expiré");
+        }
+
+        String hashedPassword = passwordEncoder.encode(request.getNewPassword());
+        user.setPassword(hashedPassword);
+        user.setEnabled(true);
+        user.setNewUser(false);
+        userRepository.save(user);
+
+        // Invalider l'OTP
+        confirmationCode.setCode("USED_" + System.currentTimeMillis());
+         confirmationCodeService.save(modelMapper.map(confirmationCode, ConfirmationCodeDTO.class));
+    }
+
+    @Transactional
+    public void resendActivationOtp(String email) throws Exception {
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("Email obligatoire");
+        }
+
+        OSMUser user = userRepository.findByEmailIgnoreCase(email)
+                .orElseThrow(() -> new IllegalArgumentException("Utilisateur introuvable"));
+
+        if (user.isEnabled()) {
+            throw new IllegalArgumentException("Le compte est déjà activé");
+        }
+
+        String code = generateRandomCode();
+
+        ConfirmationCode confirmationCode = new ConfirmationCode();
+        confirmationCode.setCode(code);
+        confirmationCode.setUser(user);
+        confirmationCode.setConfirmationCodeType(ConfirmationCodeType.ACCOUNT_ACTIVATION);
+
+        saveActivationConfirmationCode(confirmationCode);
+
+        String fullName = buildFullName(user.getFirstName(), user.getLastName());
+
+        String activationLink = buildActivationLink(user.getEmail());
+        userNotificationService.sendResendActivationOtp(
+                user.getEmail(),
+                fullName,
+                code,
+                activationLink
+        );
     }
 
     private void checkExistUser(String username, String email, String phoneNumber) {
@@ -197,23 +272,7 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
         }
     }
 
-    private void checkUserToUpdate(OSMUser user, String username, String email, String phoneNumber) {
-        if (((user.getUsername() != null && username != null && !user.getUsername().equals(username)) || (user.getUsername() == null && username != null)) && userRepository.findByUsername(username).isPresent()) {
-            OSMLogger.logSecurityEvent(this.getClass(), "USERNAME_ALREADY_EXISTS_UPDATE",
-                "Username already exists during update: " + username);
-            throw new IllegalArgumentException("Username is already in use");
-        }
-        if (((user.getEmail() != null && email != null && !user.getEmail().equals(email)) || (user.getEmail() == null && email != null)) && userRepository.findByEmailIgnoreCase(email).isPresent()) {
-            OSMLogger.logSecurityEvent(this.getClass(), "EMAIL_ALREADY_EXISTS_UPDATE",
-                "Email already exists during update: " + email);
-            throw new IllegalArgumentException("Email is already in use");
-        }
-        if (((user.getPhoneNumber() != null && phoneNumber != null && !user.getPhoneNumber().equals(phoneNumber)) || (user.getPhoneNumber() == null && phoneNumber != null)) && userRepository.findByPhoneNumber(phoneNumber).isPresent()) {
-            OSMLogger.logSecurityEvent(this.getClass(), "PHONE_ALREADY_EXISTS_UPDATE",
-                "Phone number already exists during update: " + phoneNumber);
-            throw new IllegalArgumentException("Phone number is already in use");
-        }
-    }
+
 
     public OSMUser getByUsername(String username) {
         long startTime = System.currentTimeMillis();
@@ -295,19 +354,22 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
                     throw new AccountLockedException("Invalid input");
                 }
 
-                if (user.getEmail().toLowerCase().equals(identifier)) {
+                if (user.getEmail() != null && user.getEmail().equalsIgnoreCase(identifier)) {
                     String code = generateRandomCode();
                     ConfirmationCode confirmationCode = new ConfirmationCode();
                     confirmationCode.setCode(code);
                     confirmationCode.setUser(user);
                     confirmationCode.setConfirmationCodeType(ConfirmationCodeType.RESETPASSWORD);
                     saveConfirmationCode(confirmationCode);
+                    String fullName = buildFullName(user.getFirstName(), user.getLastName());
 
-                    MailRequest mailrequest = new MailRequest();
-                    mailrequest.setTo(user.getEmail());
-                    mailrequest.setSubject("Password reset");
-                    mailrequest.setBody("Code: " + code);
-                    mailService.sendEmail(mailrequest);
+                    String resetLink = buildResetPasswordLink(user.getEmail(), user.getId());
+                    userNotificationService.sendResetPasswordCode(
+                            user.getEmail(),
+                            buildFullName(user.getFirstName(), user.getLastName()),
+                            code,
+                            resetLink
+                    );
 
                     OSMLogger.logSecurityEvent(this.getClass(), "PASSWORD_RESET_CODE_SENT",
                         "Password reset code sent to email: " + user.getEmail());
@@ -337,75 +399,65 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
             throw e;
         }
     }
-
-    private ConfirmationCode saveConfirmationCode(ConfirmationCode code) {
-        long startTime = System.currentTimeMillis();
-        OSMLogger.logMethodEntry(this.getClass(), "saveConfirmationCode",
-            "Saving confirmation code for user: " + (code.getUser() != null ? code.getUser().getUsername() : "null"));
-
-        try {
-            ConfirmationCode existedCode = confirmationCodeService.getByConfirmationCodeTypeAndUser(ConfirmationCodeType.RESETPASSWORD, code.getUser());
-            if (existedCode != null) {
-                existedCode.setCode(code.getCode());
-                ConfirmationCodeDTO codeDTO = confirmationCodeService.save(modelMapper.map(existedCode, ConfirmationCodeDTO.class));
-
-                OSMLogger.logMethodExit(this.getClass(), "saveConfirmationCode", "Existing confirmation code updated");
-                OSMLogger.logPerformance(this.getClass(), "saveConfirmationCode", startTime, System.currentTimeMillis());
-
-                return modelMapper.map(codeDTO, ConfirmationCode.class);
-            }
-
-            ConfirmationCodeDTO codeDTO = confirmationCodeService.save(modelMapper.map(code, ConfirmationCodeDTO.class));
-
-            OSMLogger.logMethodExit(this.getClass(), "saveConfirmationCode", "New confirmation code saved");
-            OSMLogger.logPerformance(this.getClass(), "saveConfirmationCode", startTime, System.currentTimeMillis());
-
-            return modelMapper.map(codeDTO, ConfirmationCode.class);
-
-        } catch (Exception e) {
-            OSMLogger.logException(this.getClass(),
-                "Error saving confirmation code for user: " + (code.getUser() != null ? code.getUser().getUsername() : "null"), e);
-            throw e;
-        }
+    private String buildFullName(String firstName, String lastName) {
+        String fn = firstName != null ? firstName.trim() : "";
+        String ln = lastName != null ? lastName.trim() : "";
+        String fullName = (fn + " " + ln).trim();
+        return fullName.isBlank() ? "Utilisateur" : fullName;
     }
+
+    private String buildActivationLink(String email) {
+        String encodedEmail = URLEncoder.encode(email, StandardCharsets.UTF_8);
+        return frontendBaseUrl + ACTIVATE_ACCOUNT_EMAIL + encodedEmail;
+    }
+    private String buildResetPasswordLink(String email, UUID userId) {
+
+        String encodedEmail = URLEncoder.encode(email, StandardCharsets.UTF_8);
+
+        return frontendBaseUrl
+                + ACTIVATE_ACCOUNT_MODE_RESET
+                + EMAIL + encodedEmail
+                + USER_ID + userId;
+    }
+
 
 
     public boolean validateResetCode(String code, UUID userId) throws Exception {
         long startTime = System.currentTimeMillis();
         OSMLogger.logMethodEntry(this.getClass(), "validateResetCode",
-            "Validating reset code for user: " + userId + ", Code: " + (code != null ? code.substring(0, Math.min(3, code.length())) + "..." : "null"));
+                "Validating reset code for user: " + userId + ", Code: " + (code != null ? code.substring(0, Math.min(3, code.length())) + "..." : "null"));
 
         try {
             OSMUser user = userRepository.findById(userId).orElse(null);
             if (user == null) {
                 OSMLogger.logSecurityEvent(this.getClass(), "RESET_CODE_VALIDATION_USER_NOT_FOUND",
-                    "Reset code validation failed - User not found: " + userId);
+                        "Reset code validation failed - User not found: " + userId);
                 throw new IllegalArgumentException("Invalid code");
             }
 
             ConfirmationCode existedCode = confirmationCodeService.getByConfirmationCodeTypeAndUser(ConfirmationCodeType.RESETPASSWORD, user);
             if (existedCode == null || !existedCode.getCode().equals(code)) {
                 OSMLogger.logSecurityEvent(this.getClass(), "RESET_CODE_VALIDATION_INVALID",
-                    "Reset code validation failed - Invalid code for user: " + userId);
+                        "Reset code validation failed - Invalid code for user: " + userId);
                 throw new IllegalArgumentException("Invalid code");
             }
             if (existedCode.isExpired()) {
                 OSMLogger.logSecurityEvent(this.getClass(), "RESET_CODE_VALIDATION_EXPIRED",
-                    "Reset code validation failed - Code expired for user: " + userId);
+                        "Reset code validation failed - Code expired for user: " + userId);
                 throw new CredentialExpiredException("Expired code");
             }
 
             OSMLogger.logMethodExit(this.getClass(), "validateResetCode",
-                "Reset code validated successfully for user: " + userId);
+                    "Reset code validated successfully for user: " + userId);
             OSMLogger.logPerformance(this.getClass(), "validateResetCode", startTime, System.currentTimeMillis());
             OSMLogger.logSecurityEvent(this.getClass(), "RESET_CODE_VALIDATED",
-                "Reset code validated successfully for user: " + userId);
+                    "Reset code validated successfully for user: " + userId);
 
             return true;
 
         } catch (Exception e) {
             OSMLogger.logException(this.getClass(),
-                "Error validating reset code for user: " + userId, e);
+                    "Error validating reset code for user: " + userId, e);
             throw e;
         }
     }
@@ -418,14 +470,14 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
             OSMUser user = userRepository.findById(userId).orElse(null);
             if (user == null) {
                 OSMLogger.logSecurityEvent(this.getClass(), "PASSWORD_UPDATE_USER_NOT_FOUND",
-                    "Password update failed - User not found: " + userId);
+                        "Password update failed - User not found: " + userId);
                 throw new IllegalArgumentException("Invalid user");
             }
 
             if (!dto.getNewPassword().equals(dto.getOldPassword())) {
                 if (!dto.getNewPassword().equals(dto.getNewPasswordConfirmation())) {
                     OSMLogger.logSecurityEvent(this.getClass(), "PASSWORD_UPDATE_CONFIRMATION_MISMATCH",
-                        "Password update failed - Confirmation mismatch for user: " + userId);
+                            "Password update failed - Confirmation mismatch for user: " + userId);
                     throw new IllegalArgumentException("Invalid password");
                 }
 
@@ -435,19 +487,19 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
                 userRepository.save(user);
 
                 OSMLogger.logMethodExit(this.getClass(), "updatePassword",
-                    "Password updated successfully for user: " + userId);
+                        "Password updated successfully for user: " + userId);
                 OSMLogger.logPerformance(this.getClass(), "updatePassword", startTime, System.currentTimeMillis());
                 OSMLogger.logSecurityEvent(this.getClass(), "PASSWORD_UPDATED",
-                    "Password updated successfully for user: " + userId);
+                        "Password updated successfully for user: " + userId);
             } else {
                 OSMLogger.logMethodExit(this.getClass(), "updatePassword",
-                    "Password update skipped - Same password for user: " + userId);
+                        "Password update skipped - Same password for user: " + userId);
                 OSMLogger.logPerformance(this.getClass(), "updatePassword", startTime, System.currentTimeMillis());
             }
 
         } catch (Exception e) {
             OSMLogger.logException(this.getClass(),
-                "Error updating password for user: " + userId, e);
+                    "Error updating password for user: " + userId, e);
             throw e;
         }
     }
@@ -455,27 +507,29 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
     private void validateUserDTO(OSMUserOUTDTO userDTO) {
         if (userDTO == null) {
             OSMLogger.logSecurityEvent(this.getClass(), "USER_VALIDATION_NULL_DTO",
-                "User validation failed - DTO is null");
+                    "User validation failed - DTO is null");
             throw new IllegalArgumentException("User data must not be null");
         }
         if (userDTO.getUsername() == null || userDTO.getUsername().isBlank()) {
             OSMLogger.logSecurityEvent(this.getClass(), "USER_VALIDATION_MISSING_USERNAME",
-                "User validation failed - Username is missing");
+                    "User validation failed - Username is missing");
             throw new IllegalArgumentException("Username is required");
         }
         if (userDTO.getConfirmationMethod() == null) {
             OSMLogger.logSecurityEvent(this.getClass(), "USER_VALIDATION_MISSING_CONFIRMATION_METHOD",
-                "User validation failed - Confirmation method is missing");
+                    "User validation failed - Confirmation method is missing");
             throw new IllegalArgumentException("Confirmation method is required");
         }
-        if (userDTO.getConfirmationMethod() == ConfirmationMethod.EMAIL && (userDTO.getEmail() == null || userDTO.getEmail().isBlank())) {
+        if (userDTO.getConfirmationMethod() == ConfirmationMethod.EMAIL
+                && (userDTO.getEmail() == null || userDTO.getEmail().isBlank())) {
             OSMLogger.logSecurityEvent(this.getClass(), "USER_VALIDATION_MISSING_EMAIL",
-                "User validation failed - Email is missing for email confirmation");
+                    "User validation failed - Email is missing for email confirmation");
             throw new IllegalArgumentException("Email is required for email confirmation");
         }
-        if (userDTO.getConfirmationMethod() == ConfirmationMethod.PHONE && (userDTO.getPhoneNumber() == null || userDTO.getPhoneNumber().isBlank())) {
+        if (userDTO.getConfirmationMethod() == ConfirmationMethod.PHONE
+                && (userDTO.getPhoneNumber() == null || userDTO.getPhoneNumber().isBlank())) {
             OSMLogger.logSecurityEvent(this.getClass(), "USER_VALIDATION_MISSING_PHONE",
-                "User validation failed - Phone number is missing for phone confirmation");
+                    "User validation failed - Phone number is missing for phone confirmation");
             throw new IllegalArgumentException("Phone number is required for phone confirmation");
         }
     }
@@ -496,13 +550,13 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
             OSMLogger.logMethodExit(this.getClass(), "generateSecureCode", "Secure code generated successfully");
             OSMLogger.logPerformance(this.getClass(), "generateSecureCode", startTime, System.currentTimeMillis());
             OSMLogger.logSecurityEvent(this.getClass(), "SECURE_CODE_GENERATED",
-                "Secure code generated with length: " + length);
+                    "Secure code generated with length: " + length);
 
             return code;
 
         } catch (Exception e) {
             OSMLogger.logException(this.getClass(),
-                "Error generating secure code with length: " + length, e);
+                    "Error generating secure code with length: " + length, e);
             throw e;
         }
     }
@@ -512,35 +566,36 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
         OSMLogger.logMethodEntry(this.getClass(), "generateRandomCode", "Generating random 6-digit code");
 
         try {
-            int code = (int) (Math.random() * 900_000) + 100_000; // range: 100000–999999
+            SecureRandom secureRandom = new SecureRandom();
+            int code = 100_000 + secureRandom.nextInt(900_000);
             String codeString = String.valueOf(code);
 
             OSMLogger.logMethodExit(this.getClass(), "generateRandomCode", "Random code generated successfully");
             OSMLogger.logPerformance(this.getClass(), "generateRandomCode", startTime, System.currentTimeMillis());
             OSMLogger.logSecurityEvent(this.getClass(), "RANDOM_CODE_GENERATED",
-                "Random 6-digit code generated");
+                    "Random 6-digit code generated");
 
             return codeString;
 
         } catch (Exception e) {
             OSMLogger.logException(this.getClass(),
-                "Error generating random code", e);
+                    "Error generating random code", e);
             throw e;
         }
     }
 
     public List<OSMUserDTO> findByRoleName(String roleName) {
-
         long startTime = System.currentTimeMillis();
         OSMLogger.logMethodEntry(this.getClass(), "findByRoleName", "Finding users by role name: " + roleName);
 
         try {
-            List<OSMUserDTO> users = userRepository.findByRoleRoleNameAndTenantId(roleName,TenantContext.getCurrentTenant()).stream().map(
-                    user -> modelMapper.map(user, OSMUserDTO.class)
-            ).toList();
+            List<OSMUserDTO> users = userRepository.findByRoleRoleNameAndTenantId(roleName, TenantContext.getCurrentTenant())
+                    .stream()
+                    .map(user -> modelMapper.map(user, OSMUserDTO.class))
+                    .toList();
 
             OSMLogger.logMethodExit(this.getClass(), "findByRoleName",
-                "Found " + users.size() + " users with role: " + roleName);
+                    "Found " + users.size() + " users with role: " + roleName);
             OSMLogger.logPerformance(this.getClass(), "findByRoleName", startTime, System.currentTimeMillis());
             OSMLogger.logDataAccess(this.getClass(), "READ_BY_ROLE", "OSMUser");
 
@@ -548,18 +603,193 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
 
         } catch (Exception e) {
             OSMLogger.logException(this.getClass(),
-                "Error finding users by role name: " + roleName, e);
+                    "Error finding users by role name: " + roleName, e);
             throw e;
         }
     }
+
     @Override
     public Set<Action> actionsMapping(OSMUser user) {
         Set<Action> actions = new HashSet<>();
         actions.add(Action.READ);
-        if (user.getRole().getRoleName().equals("ADMIN")) {
-            actions.addAll(Set.of(Action.UPDATE, Action.CREATE,Action.DELETE));
+        if (user != null && user.getRole() != null && "ADMIN".equals(user.getRole().getRoleName())) {
+            actions.addAll(Set.of(Action.UPDATE, Action.CREATE, Action.DELETE));
         }
         return actions;
+    }
+
+
+    @Transactional
+    public void resetPasswordConfirm(VerifyOtpAndSetPasswordRequest request) throws Exception {
+
+        if (request.getEmail() == null || request.getEmail().isBlank()) {
+            throw new IllegalArgumentException("Email obligatoire");
+        }
+
+        OSMUser user = userRepository.findByEmailIgnoreCase(request.getEmail())
+                .orElseThrow(() -> new IllegalArgumentException("Utilisateur introuvable"));
+
+        ConfirmationCode confirmationCode =
+                confirmationCodeService.getByConfirmationCodeTypeAndUser(
+                        ConfirmationCodeType.RESETPASSWORD,
+                        user
+                );
+
+        if (confirmationCode == null) {
+            throw new IllegalArgumentException("Code OTP introuvable");
+        }
+
+        if (!confirmationCode.getCode().equals(request.getCode())) {
+            throw new IllegalArgumentException("Code OTP invalide");
+        }
+
+        if (confirmationCode.isExpired()) {
+            throw new CredentialExpiredException("Code OTP expiré");
+        }
+
+        if (!request.getNewPassword().equals(request.getConfirmPassword())) {
+            throw new IllegalArgumentException("Les mots de passe ne correspondent pas");
+        }
+
+        String hashedPassword = passwordEncoder.encode(request.getNewPassword());
+
+        user.setPassword(hashedPassword);
+        userRepository.save(user);
+
+        confirmationCode.setCode("USED_" + System.currentTimeMillis());
+
+        confirmationCodeService.save(
+                modelMapper.map(confirmationCode, ConfirmationCodeDTO.class)
+        );
+    }
+    private void saveConfirmationCode(ConfirmationCode code) {
+        long startTime = System.currentTimeMillis();
+        OSMLogger.logMethodEntry(this.getClass(), "saveConfirmationCode",
+                "Saving confirmation code for user: " + (code.getUser() != null ? code.getUser().getUsername() : "null"));
+
+        try {
+            ConfirmationCode existedCode = confirmationCodeService.getByConfirmationCodeTypeAndUser(
+                    ConfirmationCodeType.RESETPASSWORD,
+                    code.getUser()
+            );
+
+            if (existedCode != null) {
+                existedCode.setCode(code.getCode());
+
+                ConfirmationCodeDTO codeDTO =
+                        confirmationCodeService.save(modelMapper.map(existedCode, ConfirmationCodeDTO.class));
+
+                OSMLogger.logMethodExit(this.getClass(), "saveConfirmationCode", "Existing confirmation code updated");
+                OSMLogger.logPerformance(this.getClass(), "saveConfirmationCode", startTime, System.currentTimeMillis());
+
+                modelMapper.map(codeDTO, ConfirmationCode.class);
+                return;
+            }
+
+            ConfirmationCodeDTO codeDTO =
+                    confirmationCodeService.save(modelMapper.map(code, ConfirmationCodeDTO.class));
+
+            OSMLogger.logMethodExit(this.getClass(), "saveConfirmationCode", "New confirmation code saved");
+            OSMLogger.logPerformance(this.getClass(), "saveConfirmationCode", startTime, System.currentTimeMillis());
+
+            modelMapper.map(codeDTO, ConfirmationCode.class);
+
+        } catch (Exception e) {
+            OSMLogger.logException(this.getClass(),
+                    "Error saving confirmation code for user: " + (code.getUser() != null ? code.getUser().getUsername() : "null"), e);
+            throw e;
+        }
+    }
+    @Transactional
+    public OSMUserOUTDTO updateUser(OSMUserOUTDTO userDTO, UUID id) throws Exception {
+        long startTime = System.currentTimeMillis();
+        String username = userDTO != null ? userDTO.getUsername() : "null";
+        OSMLogger.logMethodEntry(this.getClass(), "updateUser", "Updating user: " + username + " with ID: " + id);
+
+        try {
+            if (id == null) throw new IllegalArgumentException("User ID must not be null");
+
+            validateUserDTO(userDTO);
+
+            OSMUser user = repository.findById(id)
+                    .orElseThrow(() -> new UsernameNotFoundException(id.toString()));
+
+            checkUserToUpdate(user, userDTO.getUsername(), userDTO.getEmail(), userDTO.getPhoneNumber());
+
+            boolean usernameChanged = !Objects.equals(userDTO.getUsername(), user.getUsername());
+            boolean emailChanged = userDTO.getEmail() != null && !Objects.equals(userDTO.getEmail(), user.getEmail());
+            boolean phoneChanged = userDTO.getPhoneNumber() != null && !Objects.equals(userDTO.getPhoneNumber(), user.getPhoneNumber());
+
+            user.setLocked(userDTO.isLocked());
+            user.setFirstName(userDTO.getFirstName());
+            user.setLastName(userDTO.getLastName());
+            user.setUsername(userDTO.getUsername());
+            user.setConfirmationMethod(userDTO.getConfirmationMethod());
+
+            if (userDTO.getEmail() != null) {
+                user.setEmail(userDTO.getEmail());
+            }
+
+            if (userDTO.getPhoneNumber() != null) {
+                user.setPhoneNumber(userDTO.getPhoneNumber());
+            }
+
+            userRepository.save(user);
+
+            if (usernameChanged || emailChanged || phoneChanged) {
+                String rawPassword = generateSecureCode(8);
+                sendConfirmation(userDTO, rawPassword);
+                OSMLogger.logSecurityEvent(this.getClass(), "USER_CREDENTIALS_UPDATED",
+                        "User credentials updated and new password sent: " + username);
+            }
+
+            OSMLogger.logMethodExit(this.getClass(), "updateUser", "User updated successfully: " + username + " with ID: " + id);
+            OSMLogger.logPerformance(this.getClass(), "updateUser", startTime, System.currentTimeMillis());
+            OSMLogger.logSecurityEvent(this.getClass(), "USER_UPDATED",
+                    "User updated successfully: " + username + " with ID: " + id);
+
+            return modelMapper.map(user, OSMUserOUTDTO.class);
+
+        } catch (Exception e) {
+            OSMLogger.logException(this.getClass(),
+                    "Error updating user: " + username + " with ID: " + id, e);
+            throw e;
+        }
+    }
+    private void checkUserToUpdate(OSMUser user, String username, String email, String phoneNumber) {
+        if (((user.getUsername() != null && username != null && !user.getUsername().equals(username)) || (user.getUsername() == null && username != null)) && userRepository.findByUsername(username).isPresent()) {
+            OSMLogger.logSecurityEvent(this.getClass(), "USERNAME_ALREADY_EXISTS_UPDATE",
+                    "Username already exists during update: " + username);
+            throw new IllegalArgumentException("Username is already in use");
+        }
+        if (((user.getEmail() != null && email != null && !user.getEmail().equals(email)) || (user.getEmail() == null && email != null)) && userRepository.findByEmailIgnoreCase(email).isPresent()) {
+            OSMLogger.logSecurityEvent(this.getClass(), "EMAIL_ALREADY_EXISTS_UPDATE",
+                    "Email already exists during update: " + email);
+            throw new IllegalArgumentException("Email is already in use");
+        }
+        if (((user.getPhoneNumber() != null && phoneNumber != null && !user.getPhoneNumber().equals(phoneNumber)) || (user.getPhoneNumber() == null && phoneNumber != null)) && userRepository.findByPhoneNumber(phoneNumber).isPresent()) {
+            OSMLogger.logSecurityEvent(this.getClass(), "PHONE_ALREADY_EXISTS_UPDATE",
+                    "Phone number already exists during update: " + phoneNumber);
+            throw new IllegalArgumentException("Phone number is already in use");
+        }
+    }
+    private ConfirmationCode saveActivationConfirmationCode(ConfirmationCode code) {
+        ConfirmationCode existedCode =
+                confirmationCodeService.getByConfirmationCodeTypeAndUser(
+                        ConfirmationCodeType.ACCOUNT_ACTIVATION,
+                        code.getUser()
+                );
+
+        if (existedCode != null) {
+            existedCode.setCode(code.getCode());
+
+            ConfirmationCodeDTO codeDTO = confirmationCodeService.save(modelMapper.map(existedCode, ConfirmationCodeDTO.class));
+            return modelMapper.map(codeDTO, ConfirmationCode.class);
+        }
+
+        ConfirmationCodeDTO codeDTO =confirmationCodeService.save(modelMapper.map(code, ConfirmationCodeDTO.class));
+
+        return modelMapper.map(codeDTO, ConfirmationCode.class);
     }
 
 }
