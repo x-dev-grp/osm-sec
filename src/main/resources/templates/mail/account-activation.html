@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Activation de votre compte OSM</title>
+    <style>
+        /* Reset et styles de base */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        /* Container principal */
+        .email-container {
+            max-width: 600px;
+            width: 100%;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(102, 126, 234, 0.3);
+            overflow: hidden;
+            animation: slideIn 0.5s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-30px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        /* En-tête */
+        .email-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        .email-header h1 {
+            color: white;
+            font-size: 28px;
+            font-weight: 600;
+            margin: 0;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .email-header .subtitle {
+            color: rgba(255, 255, 255, 0.9);
+            margin-top: 10px;
+            font-size: 16px;
+        }
+
+        /* Contenu principal */
+        .email-content {
+            padding: 40px 30px;
+        }
+
+        /* Salutation */
+        .greeting {
+            font-size: 20px;
+            color: #333;
+            margin-bottom: 25px;
+            font-weight: 500;
+        }
+
+        .greeting span {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 600;
+        }
+
+        /* Message de bienvenue */
+        .welcome-message {
+            background: #f0f3ff;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+
+        .welcome-message p {
+            color: #555;
+            margin: 5px 0;
+        }
+
+        .welcome-message strong {
+            color: #667eea;
+        }
+
+        /* Section OTP */
+        .otp-section {
+            background: linear-gradient(135deg, #f0f3ff 0%, #e6ecff 100%);
+            border-radius: 15px;
+            padding: 30px;
+            margin: 30px 0;
+            text-align: center;
+            border: 2px dashed #667eea;
+        }
+
+        .otp-label {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .otp-code {
+            font-family: 'Courier New', monospace;
+            font-size: 48px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            display: inline-block;
+            padding: 15px 40px;
+            background-color: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+            letter-spacing: 8px;
+            margin: 10px 0;
+            border: 2px solid #667eea;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.02);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .expiry-info {
+            margin-top: 20px;
+            color: #666;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+
+        .expiry-info strong {
+            color: #667eea;
+            font-weight: 600;
+            background: white;
+            padding: 5px 15px;
+            border-radius: 25px;
+            border: 1px solid #667eea;
+        }
+
+        /* Bouton d'activation */
+        .activate-button {
+            text-align: center;
+            margin: 35px 0;
+        }
+
+        .btn-activate {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            padding: 16px 40px;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 18px;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-activate:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(102, 126, 234, 0.6);
+        }
+
+        .btn-activate:active {
+            transform: translateY(-1px);
+        }
+
+        /* Informations du compte */
+        .info-box {
+            background: #f8f9ff;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 30px 0;
+            border: 1px solid #e0e7ff;
+        }
+
+        .info-title {
+            font-size: 18px;
+            color: #667eea;
+            margin-bottom: 15px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .info-title:before {
+            content: "✨";
+            font-size: 20px;
+        }
+
+        .info-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .info-list li {
+            padding: 10px 0;
+            color: #555;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid #e0e7ff;
+        }
+
+        .info-list li:last-child {
+            border-bottom: none;
+        }
+
+        .info-list li:before {
+            content: "✓";
+            color: #667eea;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        /* Pied de page */
+        .email-footer {
+            background: #f8f9ff;
+            padding: 30px;
+            text-align: center;
+            border-top: 1px solid #e0e7ff;
+        }
+
+        .help-text {
+            color: #999;
+            font-size: 13px;
+        }
+
+        .help-text a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .help-text a:hover {
+            text-decoration: underline;
+        }
+
+        /* Lien alternatif */
+        .alt-link {
+            text-align: center;
+            margin: 20px 0;
+            word-break: break-all;
+            font-size: 14px;
+        }
+
+        .alt-link a {
+            color: #667eea;
+            text-decoration: none;
+            border-bottom: 1px dashed #667eea;
+        }
+
+        .alt-link a:hover {
+            border-bottom-style: solid;
+        }
+
+        /* Badge admin */
+        .admin-badge {
+            background: #e0e7ff;
+            color: #667eea;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: 600;
+            display: inline-block;
+            margin-top: 10px;
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            .email-header {
+                padding: 30px 20px;
+            }
+
+            .email-header h1 {
+                font-size: 24px;
+            }
+
+            .email-content {
+                padding: 30px 20px;
+            }
+
+            .otp-code {
+                font-size: 36px;
+                padding: 12px 25px;
+                letter-spacing: 5px;
+            }
+
+            .btn-activate {
+                padding: 14px 30px;
+                font-size: 16px;
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="email-container">
+    <!-- En-tête -->
+    <div class="email-header">
+        <h1>🎉 Activation de votre compte OSM</h1>
+        <div class="subtitle">Bienvenue dans notre communauté !</div>
+    </div>
+
+    <!-- Contenu principal -->
+    <div class="email-content">
+        <!-- Salutation -->
+        <div class="greeting">
+            Bonjour <span th:text="${fullName}">Utilisateur</span> 👋
+        </div>
+
+        <!-- Message de bienvenue -->
+        <div class="welcome-message">
+            <p><strong>Votre compte a été créé par un administrateur.</strong></p>
+            <p>Nous sommes ravis de vous accueillir parmi nous !</p>
+            <div class="admin-badge">✅ Compte pré-approuvé</div>
+        </div>
+
+        <!-- Section OTP -->
+        <div class="otp-section">
+            <div class="otp-label">Votre code d'activation</div>
+            <div class="otp-code" th:text="${otpCode}">123456</div>
+            <div class="expiry-info">
+                <span>⏱️</span>
+                Code valable
+                <strong th:text="${expiryMinutes} + ' minutes'">15 minutes</strong>
+            </div>
+        </div>
+
+        <!-- Bouton d'activation -->
+        <div class="activate-button">
+            <a th:href="${activationLink}" class="btn-activate">
+                Activer mon compte maintenant →
+            </a>
+        </div>
+
+        <!-- Informations importantes -->
+        <div class="info-box">
+            <div class="info-title">Votre compte en quelques clics :</div>
+            <ul class="info-list">
+                <li>Code à usage unique - valable 15 minutes</li>
+                <li>Définissez votre mot de passe personnel</li>
+                <li>Accédez à toutes les fonctionnalités</li>
+                <li>Sécurisez votre compte dès maintenant</li>
+            </ul>
+        </div>
+
+        <!-- Lien alternatif -->
+        <div class="alt-link">
+            <span style="color: #666;">Lien d'activation direct :</span><br>
+            <a th:href="${activationLink}" th:text="${activationLink}">https://...</a>
+        </div>
+
+        <!-- Note de sécurité -->
+        <p style="text-align: center; color: #999; font-size: 12px; margin-top: 20px;">
+            🔒 Ceci est un email automatique - Merci de ne pas y répondre
+        </p>
+    </div>
+
+    <!-- Pied de page -->
+    <div class="email-footer">
+        <div class="help-text">
+            <p>Besoin d'aide ? <a href="#">Contactez notre support</a></p>
+            <p style="margin-top: 15px;">© 2026 OSM. Tous droits réservés.</p>
+        </div>
+    </div>
+</div>
+</body>
+</html>

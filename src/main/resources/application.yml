@@ -91,6 +91,20 @@ springdoc:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
+# ================== OTP Configuration ==================
+otp:
+  code:
+    length: 6
+    expiry:
+      minutes: 15
+  resend:
+    delay:
+      minutes: 2
+  max:
+    attempts: 3
+app:
+  frontend:
+    base-url:  ${FRONTEND_ENTRY_POINT:http://localhost:4200}
 management:
   endpoint:
     web:

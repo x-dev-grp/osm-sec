@@ -1,9 +1,8 @@
 package com.osm.securityservice.userManagement.models.enums;
 
 public enum ConfirmationCodeType {
-    RESETPASSWORD(0);
-
-
+    ACCOUNT_ACTIVATION(1),
+    RESETPASSWORD(2);
     private final int value;
 
     ConfirmationCodeType(int value) {

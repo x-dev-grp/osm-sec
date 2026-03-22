@@ -2,10 +2,7 @@ package com.osm.securityservice.userManagement.models;
 
 import com.osm.securityservice.userManagement.models.enums.ConfirmationMethod;
 import com.xdev.xdevbase.entities.BaseEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.ManyToOne;
+import jakarta.persistence.*;
 import org.hibernate.envers.Audited;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -30,6 +27,7 @@ public class OSMUser extends BaseEntity implements UserDetails {
     private boolean isLocked;
     private ConfirmationMethod confirmationMethod;
     private boolean isNewUser;
+    private boolean enabled = false;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
@@ -90,7 +88,7 @@ public class OSMUser extends BaseEntity implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return true;
+        return enabled;
     }
 
     public String getPhoneNumber() {
@@ -139,5 +137,9 @@ public class OSMUser extends BaseEntity implements UserDetails {
 
     public void setLastName(String lastName) {
         this.lastName = lastName;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
     }
 }
