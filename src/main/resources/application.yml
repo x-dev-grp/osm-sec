@@ -42,7 +42,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: ${HIBERNATE_DDL_AUTO:update}
+      ddl-auto: ${HIBERNATE_DDL_AUTO:none}
     show-sql: ${SHOW_SQL:false}
     database-platform: org.hibernate.dialect.PostgreSQLDialect
   sql:
@@ -112,17 +112,3 @@ management:
         include:*
     health:
       show-details: always
-# ================== OTP Configuration ==================
-otp:
-  code:
-    length: 6
-    expiry:
-      minutes: 15
-  resend:
-    delay:
-      minutes: 2
-  max:
-    attempts: 3
-app:
-  frontend:
-    base-url:  ${FRONTEND_ENTRY_POINT:http://localhost:4200}
