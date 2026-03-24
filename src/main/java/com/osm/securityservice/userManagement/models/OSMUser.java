@@ -27,7 +27,8 @@ public class OSMUser extends BaseEntity implements UserDetails {
     private boolean isLocked;
     private ConfirmationMethod confirmationMethod;
     private boolean isNewUser;
-    private boolean enabled = false;
+    @Column( nullable = false)
+    private Boolean enabled = false;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
