@@ -298,4 +298,9 @@ public class UserController extends BaseControllerImpl<OSMUser, OSMUserDTO, OSMU
     protected String getResourceName() {
         return "USER";
     }
+
+    @Override
+    public ResponseEntity<?> resolve(String publicCode) {
+        return null;
+    }
 }

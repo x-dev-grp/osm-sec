@@ -71,4 +71,8 @@ public class CompanyProfileController extends BaseControllerImpl<CompanyProfile,
     }
 
 
+    @Override
+    public ResponseEntity<?> resolve(String publicCode) {
+        return null;
+    }
 }
