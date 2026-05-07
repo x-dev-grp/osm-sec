@@ -2,7 +2,10 @@ package com.osm.securityservice.userManagement.models;
 
 import com.osm.securityservice.userManagement.models.enums.ConfirmationMethod;
 import com.xdev.xdevbase.entities.BaseEntity;
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.ManyToOne;
 import org.hibernate.envers.Audited;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -27,6 +30,8 @@ public class OSMUser extends BaseEntity implements UserDetails {
     private boolean isLocked;
     private ConfirmationMethod confirmationMethod;
     private boolean isNewUser;
+    @Column(name = "one_signal_player_id")   // nom de la colonne en BDD
+    private String oneSignalPlayerId;
     @Column( nullable = false)
     private Boolean enabled = false;
 
@@ -139,7 +144,13 @@ public class OSMUser extends BaseEntity implements UserDetails {
     public void setLastName(String lastName) {
         this.lastName = lastName;
     }
+    public String getOneSignalPlayerId() {
+        return oneSignalPlayerId;
+    }
 
+    public void setOneSignalPlayerId(String oneSignalPlayerId) {
+        this.oneSignalPlayerId = oneSignalPlayerId;
+    }
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
     }

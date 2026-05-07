@@ -22,4 +22,9 @@ public interface UserRepository extends BaseRepository<OSMUser> {
     Optional<OSMUser> findByPhoneNumber(String phoneNumber);
 
     List<OSMUser> findByRoleRoleNameAndTenantId(String roleName, UUID tenantId);
+
+    @Query("SELECT u FROM OSMUser u JOIN u.role r WHERE r.roleName = :roleName " +
+            "AND (u.tenantId = :tenantId OR u.tenantId IS NULL)")
+    List<OSMUser> findByRoleNameAndTenant(@Param("roleName") String roleName,
+                                          @Param("tenantId") UUID tenantId);
 }

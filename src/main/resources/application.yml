@@ -20,7 +20,10 @@ eureka:
     # expire missing instances after ~15s (default 90s)
     lease-expiration-duration-in-seconds: 15
 
-
+onesignal:
+  app-id: e548b208-cac7-4a46-833b-e2ad16add4ac
+  api-key: os_v2_app_4velecgky5fenaz34kwrnlouvqygyzrdzj3eb3ul5kbvtv7lywxz76qxofcuoatnskdgszlm7om2rgcnbtdxm5wnmeqnyyj5t657rvq
+  endpoint: "https://onesignal.com/api/v1/notifications"
 
 spring:
   main:
@@ -44,7 +47,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: ${HIBERNATE_DDL_AUTO:update}
-    show-sql: ${SHOW_SQL:false}
+    show-sql: ${SHOW_SQL:true}
     database-platform: org.hibernate.dialect.PostgreSQLDialect
   sql:
     init:

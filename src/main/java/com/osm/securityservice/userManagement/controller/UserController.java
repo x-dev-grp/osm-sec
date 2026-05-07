@@ -3,7 +3,6 @@ package com.osm.securityservice.userManagement.controller;
 import com.osm.securityservice.userManagement.dtos.OUTDTO.OSMUserDTO;
 import com.osm.securityservice.userManagement.dtos.OUTDTO.OSMUserOUTDTO;
 import com.osm.securityservice.userManagement.dtos.OUTDTO.UpdatePasswordDTO;
-import com.osm.securityservice.userManagement.dtos.OUTDTO.VerifyOtpAndSetPasswordRequest;
 import com.osm.securityservice.userManagement.models.OSMUser;
 import com.osm.securityservice.userManagement.service.UserService;
 import com.xdev.xdevbase.controllers.impl.BaseControllerImpl;
@@ -16,6 +15,8 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.security.auth.login.AccountLockedException;
 import javax.security.auth.login.CredentialExpiredException;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -32,27 +33,27 @@ public class UserController extends BaseControllerImpl<OSMUser, OSMUserDTO, OSMU
     public ResponseEntity<?> resetPassword(@RequestParam String identifier) {
         long startTime = System.currentTimeMillis();
         OSMLogger.logMethodEntry(this.getClass(), "resetPassword", "Password reset request for identifier: " + identifier);
-        
+
         try {
             OSMUserOUTDTO user = userService.resetPassword(identifier);
-            
+
             OSMLogger.logMethodExit(this.getClass(), "resetPassword", "Password reset successful for identifier: " + identifier);
             OSMLogger.logPerformance(this.getClass(), "resetPassword", startTime, System.currentTimeMillis());
-            OSMLogger.logSecurityEvent(this.getClass(), "PASSWORD_RESET_REQUESTED", 
+            OSMLogger.logSecurityEvent(this.getClass(), "PASSWORD_RESET_REQUESTED",
                 "Password reset requested successfully for identifier: " + identifier);
-            
+
             return ResponseEntity.ok(user);
-            
+
         } catch (AccountLockedException e) {
-            OSMLogger.logSecurityEvent(this.getClass(), "PASSWORD_RESET_ACCOUNT_LOCKED", 
+            OSMLogger.logSecurityEvent(this.getClass(), "PASSWORD_RESET_ACCOUNT_LOCKED",
                 "Password reset failed - Account locked for identifier: " + identifier);
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Account is locked");
-            
+
         } catch (IllegalArgumentException e) {
-            OSMLogger.logSecurityEvent(this.getClass(), "PASSWORD_RESET_INVALID_INPUT", 
+            OSMLogger.logSecurityEvent(this.getClass(), "PASSWORD_RESET_INVALID_INPUT",
                 "Password reset failed - Invalid input for identifier: " + identifier + ", Error: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid input");
-            
+
         } catch (Exception e) {
             OSMLogger.logException(this.getClass(), 
                 "Unexpected error during password reset for identifier: " + identifier, e);
@@ -186,121 +187,51 @@ public class UserController extends BaseControllerImpl<OSMUser, OSMUserDTO, OSMU
         }
     }
 
-    @PostMapping("/auth/register-by-email-otp")
-    public ResponseEntity<?> registerByEmailOtp(@RequestBody OSMUserOUTDTO dto) {
-        long startTime = System.currentTimeMillis();
-        String username = dto != null ? dto.getUsername() : "null";
-        OSMLogger.logMethodEntry(this.getClass(), "registerByEmailOtp",
-                "Registering user with email OTP: " + username);
-
-        try {
-            userService.createUserPendingConfirmation(dto);
-
-            OSMLogger.logMethodExit(this.getClass(), "registerByEmailOtp",
-                    "Pending user created successfully: " + username);
-            OSMLogger.logPerformance(this.getClass(), "registerByEmailOtp", startTime, System.currentTimeMillis());
-            OSMLogger.logSecurityEvent(this.getClass(), "USER_PENDING_CONFIRMATION_CREATED",
-                    "Pending user created successfully: " + username);
-
-            return ResponseEntity.ok("Compte créé. Un code OTP et un lien d’activation ont été envoyés par email.");
-
-        } catch (IllegalArgumentException e) {
-            OSMLogger.logSecurityEvent(this.getClass(), "USER_PENDING_CONFIRMATION_INVALID",
-                    "Pending user creation failed for username: " + username + ", Error: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
-
-        } catch (Exception e) {
-            OSMLogger.logException(this.getClass(),
-                    "Unexpected error during pending user creation for username: " + username, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Erreur lors de la création du compte : " + e.getMessage());
-        }
-    }
-    @PostMapping("/auth/verify-otp-and-set-password")
-    public ResponseEntity<?> verifyOtpAndSetPassword(@RequestBody VerifyOtpAndSetPasswordRequest request) {
-        long startTime = System.currentTimeMillis();
-        String email = request != null ? request.getEmail() : "null";
-        OSMLogger.logMethodEntry(this.getClass(), "verifyOtpAndSetPassword",
-                "Activating account for email: " + email);
-
-        try {
-            userService.verifyOtpAndSetPassword(request);
-
-            OSMLogger.logMethodExit(this.getClass(), "verifyOtpAndSetPassword",
-                    "Account activated successfully for email: " + email);
-            OSMLogger.logPerformance(this.getClass(), "verifyOtpAndSetPassword", startTime, System.currentTimeMillis());
-            OSMLogger.logSecurityEvent(this.getClass(), "ACCOUNT_ACTIVATED",
-                    "Account activated successfully for email: " + email);
-
-            return ResponseEntity.ok("Compte activé avec succès");
-
-        } catch (CredentialExpiredException e) {
-            OSMLogger.logSecurityEvent(this.getClass(), "ACCOUNT_ACTIVATION_OTP_EXPIRED",
-                    "Activation failed - OTP expired for email: " + email);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Le code OTP a expiré");
-
-        } catch (IllegalArgumentException e) {
-            OSMLogger.logSecurityEvent(this.getClass(), "ACCOUNT_ACTIVATION_INVALID",
-                    "Activation failed for email: " + email + ", Error: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
-
-        } catch (Exception e) {
-            OSMLogger.logException(this.getClass(),
-                    "Unexpected error during account activation for email: " + email, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Erreur lors de l’activation du compte");
-        }
-    }
-    @PostMapping("/auth/resend-activation-otp")
-    public ResponseEntity<?> resendActivationOtp(@RequestParam String email) {
-        long startTime = System.currentTimeMillis();
-        OSMLogger.logMethodEntry(this.getClass(), "resendActivationOtp",
-                "Resending activation OTP for email: " + email);
-
-        try {
-            userService.resendActivationOtp(email);
-
-            OSMLogger.logMethodExit(this.getClass(), "resendActivationOtp",
-                    "Activation OTP resent successfully for email: " + email);
-            OSMLogger.logPerformance(this.getClass(), "resendActivationOtp", startTime, System.currentTimeMillis());
-            OSMLogger.logSecurityEvent(this.getClass(), "ACCOUNT_ACTIVATION_OTP_RESENT",
-                    "Activation OTP resent successfully for email: " + email);
-
-            return ResponseEntity.ok("Un nouveau code OTP a été envoyé");
-
-        } catch (IllegalArgumentException e) {
-            OSMLogger.logSecurityEvent(this.getClass(), "ACCOUNT_ACTIVATION_OTP_RESEND_INVALID",
-                    "Resend activation OTP failed for email: " + email + ", Error: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
-
-        } catch (Exception e) {
-            OSMLogger.logException(this.getClass(),
-                    "Unexpected error while resending activation OTP for email: " + email, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Erreur lors du renvoi du code OTP");
-        }
-    }
-    //oublié mot de passe
-    @PostMapping("/auth/resetPassword/confirm")
-    public ResponseEntity<?> resetPasswordConfirm(
-            @RequestBody VerifyOtpAndSetPasswordRequest request) {
-
-        try {
-            userService.resetPasswordConfirm(request);
-            return ResponseEntity.ok("Mot de passe modifié avec succès");
-
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
-    }
-
     @Override
     protected String getResourceName() {
-        return "USER";
+        return "USER".toUpperCase();
     }
 
     @Override
     public ResponseEntity<?> resolve(String publicCode) {
         return null;
     }
-}
+
+    @GetMapping("/role/{roleName}")
+    public ResponseEntity<List<OSMUserDTO>> getUsersByRole(@PathVariable String roleName) {
+        long startTime = System.currentTimeMillis();
+        OSMLogger.logMethodEntry(this.getClass(), "getUsersByRole", "Fetching users for role: " + roleName);
+
+        try {
+            List<OSMUserDTO> users = userService.findByRole(roleName);
+
+            OSMLogger.logMethodExit(this.getClass(), "getUsersByRole",
+                    "Found " + users.size() + " users");
+            OSMLogger.logPerformance(this.getClass(), "getUsersByRole",
+                    startTime, System.currentTimeMillis());
+
+            return ResponseEntity.ok(users);
+        } catch (Exception e) {
+            OSMLogger.logException(this.getClass(),
+                    "Error fetching users by role: " + roleName, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+    @PostMapping("/register-device")
+    public ResponseEntity<?> registerDevice(@RequestBody Map<String, String> body) {
+        String userId = body.get("userId");
+        String playerId = body.get("playerId");
+
+        if (userId == null || playerId == null) {
+            return ResponseEntity.badRequest().body("userId and playerId are required");
+        }
+        try {
+            userService.updateOneSignalPlayerId(userId, playerId);
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error: " + e.getMessage());
+        }
+    }
+    }
+
