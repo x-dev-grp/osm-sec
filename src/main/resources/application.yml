@@ -85,10 +85,11 @@ logging:
     com.osm.securityservice: INFO
     org.springframework.security: INFO
     org.springframework.security.oauth2: INFO
-    org.springframework.web: INFO
+    org.springframework.web: ${LOG_LEVEL_WEB:INFO}
     org.hibernate.SQL: WARN
     org.hibernate.type.descriptor.sql.BasicBinder: WARN
-    com.netflix.discovery: WARN
+    com.netflix.discovery: ${LOG_LEVEL_EUREKA:WARN}
+    org.springframework.web.client.RestTemplate: ${LOG_LEVEL_REST:WARN}
 
 springdoc:
   api-docs:

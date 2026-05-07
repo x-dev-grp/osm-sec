@@ -32,6 +32,8 @@ jobs:
             osm-hr)      echo "service_name=hrservice"             >> $GITHUB_OUTPUT; echo "service_port=8086" >> $GITHUB_OUTPUT ;;
             osm-gateway) echo "service_name=gateway"               >> $GITHUB_OUTPUT; echo "service_port=8084" >> $GITHUB_OUTPUT ;;
             osm-eureka)  echo "service_name=eureka"                >> $GITHUB_OUTPUT; echo "service_port=8761" >> $GITHUB_OUTPUT ;;
+            osm-pack)    echo "service_name=inventoryservice"      >> $GITHUB_OUTPUT; echo "service_port=1234" >> $GITHUB_OUTPUT ;;
+            osm-cond)    echo "service_name=conditioningservice"   >> $GITHUB_OUTPUT; echo "service_port=8089" >> $GITHUB_OUTPUT ;;
             osm-parent)  echo "skip_build=true"                    >> $GITHUB_OUTPUT ;;
             *) echo "Unknown repository: $REPO"; exit 1 ;;
           esac

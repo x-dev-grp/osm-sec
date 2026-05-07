@@ -91,7 +91,7 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
         }
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public OSMUserOUTDTO addUser(OSMUserOUTDTO userDTO) throws Exception {
         long startTime = System.currentTimeMillis();
         String username = userDTO != null ? userDTO.getUsername() : "null";
@@ -125,7 +125,7 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
         }
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public OSMUserOUTDTO updateUser(OSMUserOUTDTO userDTO, UUID id) throws Exception {
         long startTime = System.currentTimeMillis();
         String username = userDTO != null ? userDTO.getUsername() : "null";
@@ -294,6 +294,7 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
         }
     }
 
+    @Transactional(rollbackFor = Exception.class)
     public OSMUserOUTDTO resetPassword(String identifier) throws Exception {
         long startTime = System.currentTimeMillis();
         OSMLogger.logMethodEntry(this.getClass(), "resetPassword", "Password reset request for identifier: " + identifier);
@@ -581,6 +582,8 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
         }
         return actions;
     }
+
+
     @Transactional
     public void updateOneSignalPlayerId(String userIdOrUsername, String playerId) {
         // Chercher par UUID d'abord, puis par username en fallback

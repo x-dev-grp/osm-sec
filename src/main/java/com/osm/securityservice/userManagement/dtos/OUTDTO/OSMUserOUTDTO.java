@@ -15,10 +15,6 @@ public class OSMUserOUTDTO extends BaseDto<OSMUser> {
     private ConfirmationMethod confirmationMethod;
     private boolean isNewUser;
 
-
-
-    private String password;
-
     public boolean isNewUser() {
         return isNewUser;
     }
@@ -89,12 +85,5 @@ public class OSMUserOUTDTO extends BaseDto<OSMUser> {
 
     public void setLastName(String lastName) {
         this.lastName = lastName;
-    }
-    public String getPassword() {
-        return password;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
     }
 }

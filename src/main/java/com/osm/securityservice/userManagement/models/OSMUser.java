@@ -94,7 +94,7 @@ public class OSMUser extends BaseEntity implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return enabled;
+        return true;
     }
 
     public String getPhoneNumber() {
