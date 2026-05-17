@@ -21,6 +21,10 @@ public class CompanyProfileDTO extends BaseDto<CompanyProfile> {
     private String governorate;
     private String logoData;
     private String logoContentType;
+    private Integer campaignStartMonth;
+    private Integer campaignStartDay;
+    private Integer campaignEndMonth;
+    private Integer campaignEndDay;
 
     public String getLegalName() {
         return legalName;
@@ -141,5 +145,37 @@ public class CompanyProfileDTO extends BaseDto<CompanyProfile> {
 
     public void setLogoContentType(String logoContentType) {
         this.logoContentType = logoContentType;
+    }
+
+    public Integer getCampaignStartMonth() {
+        return campaignStartMonth;
+    }
+
+    public void setCampaignStartMonth(Integer campaignStartMonth) {
+        this.campaignStartMonth = campaignStartMonth;
+    }
+
+    public Integer getCampaignStartDay() {
+        return campaignStartDay;
+    }
+
+    public void setCampaignStartDay(Integer campaignStartDay) {
+        this.campaignStartDay = campaignStartDay;
+    }
+
+    public Integer getCampaignEndMonth() {
+        return campaignEndMonth;
+    }
+
+    public void setCampaignEndMonth(Integer campaignEndMonth) {
+        this.campaignEndMonth = campaignEndMonth;
+    }
+
+    public Integer getCampaignEndDay() {
+        return campaignEndDay;
+    }
+
+    public void setCampaignEndDay(Integer campaignEndDay) {
+        this.campaignEndDay = campaignEndDay;
     }
 }
