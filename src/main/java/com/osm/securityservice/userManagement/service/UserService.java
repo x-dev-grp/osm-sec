@@ -91,6 +91,7 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
         }
     }
 
+    // Fixed as part of TICKET-001: Roll back on checked exceptions during user activation/addition
     @Transactional(rollbackFor = Exception.class)
     public OSMUserOUTDTO addUser(OSMUserOUTDTO userDTO) throws Exception {
         long startTime = System.currentTimeMillis();
@@ -125,6 +126,7 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
         }
     }
 
+    // Fixed as part of TICKET-001: Roll back on checked exceptions during user update
     @Transactional(rollbackFor = Exception.class)
     public OSMUserOUTDTO updateUser(OSMUserOUTDTO userDTO, UUID id) throws Exception {
         long startTime = System.currentTimeMillis();
@@ -294,6 +296,7 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
         }
     }
 
+    // Fixed as part of TICKET-001: Make password reset atomic and roll back if email delivery fails
     @Transactional(rollbackFor = Exception.class)
     public OSMUserOUTDTO resetPassword(String identifier) throws Exception {
         long startTime = System.currentTimeMillis();
