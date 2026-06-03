@@ -1,10 +1,12 @@
 package com.osm.securityservice.userManagement.controller;
 
+import com.osm.securityservice.userManagement.dtos.OUTDTO.AssignableUserDTO;
 import com.osm.securityservice.userManagement.dtos.OUTDTO.OSMUserDTO;
 import com.osm.securityservice.userManagement.dtos.OUTDTO.OSMUserOUTDTO;
 import com.osm.securityservice.userManagement.dtos.OUTDTO.UpdatePasswordDTO;
 import com.osm.securityservice.userManagement.models.OSMUser;
 import com.osm.securityservice.userManagement.service.UserService;
+import com.xdev.xdevbase.models.OSMModule;
 import com.xdev.xdevbase.controllers.impl.BaseControllerImpl;
 import com.xdev.xdevbase.services.BaseService;
 import com.xdev.xdevbase.utils.OSMLogger;
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import javax.security.auth.login.AccountLockedException;
 import javax.security.auth.login.CredentialExpiredException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -223,6 +226,21 @@ public class UserController extends BaseControllerImpl<OSMUser, OSMUserDTO, OSMU
                     .body("Error: " + e.getMessage());
         }
     }
+
+    @GetMapping("/assignable")
+    public ResponseEntity<?> getAssignableUsersByPermission(@RequestParam String module,
+                                                            @RequestParam String entity,
+                                                            @RequestParam String permission) {
+        try {
+            OSMModule moduleEnum = OSMModule.valueOf(module.toUpperCase(Locale.ROOT));
+            List<AssignableUserDTO> users = userService.findAssignableUsersByPermissionIncludingAdmins(moduleEnum, entity, permission);
+            return ResponseEntity.ok(users);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid module or permission parameters");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to fetch assignable users");
+        }
     }
+}
 
 

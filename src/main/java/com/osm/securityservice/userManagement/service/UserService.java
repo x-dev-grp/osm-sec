@@ -3,6 +3,7 @@ package com.osm.securityservice.userManagement.service;
 import com.osm.securityservice.userManagement.data.RoleRepository;
 import com.osm.securityservice.userManagement.data.UserRepository;
 import com.osm.securityservice.userManagement.dtos.OUTDTO.ConfirmationCodeDTO;
+import com.osm.securityservice.userManagement.dtos.OUTDTO.AssignableUserDTO;
 import com.osm.securityservice.userManagement.dtos.OUTDTO.OSMUserDTO;
 import com.osm.securityservice.userManagement.dtos.OUTDTO.OSMUserOUTDTO;
 import com.osm.securityservice.userManagement.dtos.OUTDTO.UpdatePasswordDTO;
@@ -15,6 +16,7 @@ import com.xdev.mailSender.models.MailRequest;
 import com.xdev.mailSender.services.MailService;
 import com.xdev.xdevbase.config.TenantContext;
 import com.xdev.xdevbase.models.Action;
+import com.xdev.xdevbase.models.OSMModule;
 import com.xdev.xdevbase.repos.BaseRepository;
 import com.xdev.xdevbase.services.impl.BaseServiceImpl;
 import com.xdev.xdevbase.utils.OSMLogger;
@@ -574,6 +576,27 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
         return users.stream()
                 .map(user -> modelMapper.map(user, OSMUserDTO.class))
                 .toList();
+    }
+
+    public List<AssignableUserDTO> findAssignableUsersByPermissionIncludingAdmins(OSMModule module, String entity, String permissionName) {
+        UUID tenantId = TenantContext.getCurrentTenant();
+        List<OSMUser> users = userRepository.findAssignableUsersByPermissionOrAdmin(tenantId, module, entity, permissionName);
+
+        return users.stream().map(user -> {
+            AssignableUserDTO dto = new AssignableUserDTO();
+            dto.setId(user.getId());
+            dto.setUsername(user.getUsername());
+            dto.setFirstName(user.getFirstName());
+            dto.setLastName(user.getLastName());
+            dto.setRoleName(user.getRole() != null ? user.getRole().getRoleName() : null);
+
+            String firstName = user.getFirstName() != null ? user.getFirstName().trim() : "";
+            String lastName = user.getLastName() != null ? user.getLastName().trim() : "";
+            String fullName = (firstName + " " + lastName).trim();
+            dto.setDisplayName(!fullName.isEmpty() ? fullName : user.getUsername());
+
+            return dto;
+        }).toList();
     }
 
     @Override
