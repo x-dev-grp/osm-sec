@@ -30,6 +30,10 @@ public class OSMUser extends BaseEntity implements UserDetails {
     private boolean isLocked;
     private ConfirmationMethod confirmationMethod;
     private boolean isNewUser;
+    @Column(name = "one_signal_player_id")   // nom de la colonne en BDD
+    private String oneSignalPlayerId;
+    @Column( nullable = false)
+    private Boolean enabled = false;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
@@ -139,5 +143,15 @@ public class OSMUser extends BaseEntity implements UserDetails {
 
     public void setLastName(String lastName) {
         this.lastName = lastName;
+    }
+    public String getOneSignalPlayerId() {
+        return oneSignalPlayerId;
+    }
+
+    public void setOneSignalPlayerId(String oneSignalPlayerId) {
+        this.oneSignalPlayerId = oneSignalPlayerId;
+    }
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
     }
 }

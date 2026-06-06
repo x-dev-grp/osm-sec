@@ -3,6 +3,7 @@ package com.osm.securityservice.userManagement.service;
 import com.osm.securityservice.userManagement.data.RoleRepository;
 import com.osm.securityservice.userManagement.data.UserRepository;
 import com.osm.securityservice.userManagement.dtos.OUTDTO.ConfirmationCodeDTO;
+import com.osm.securityservice.userManagement.dtos.OUTDTO.AssignableUserDTO;
 import com.osm.securityservice.userManagement.dtos.OUTDTO.OSMUserDTO;
 import com.osm.securityservice.userManagement.dtos.OUTDTO.OSMUserOUTDTO;
 import com.osm.securityservice.userManagement.dtos.OUTDTO.UpdatePasswordDTO;
@@ -15,6 +16,7 @@ import com.xdev.mailSender.models.MailRequest;
 import com.xdev.mailSender.services.MailService;
 import com.xdev.xdevbase.config.TenantContext;
 import com.xdev.xdevbase.models.Action;
+import com.xdev.xdevbase.models.OSMModule;
 import com.xdev.xdevbase.repos.BaseRepository;
 import com.xdev.xdevbase.services.impl.BaseServiceImpl;
 import com.xdev.xdevbase.utils.OSMLogger;
@@ -91,7 +93,8 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
         }
     }
 
-    @Transactional
+    // Fixed as part of TICKET-001: Roll back on checked exceptions during user activation/addition
+    @Transactional(rollbackFor = Exception.class)
     public OSMUserOUTDTO addUser(OSMUserOUTDTO userDTO) throws Exception {
         long startTime = System.currentTimeMillis();
         String username = userDTO != null ? userDTO.getUsername() : "null";
@@ -125,7 +128,8 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
         }
     }
 
-    @Transactional
+    // Fixed as part of TICKET-001: Roll back on checked exceptions during user update
+    @Transactional(rollbackFor = Exception.class)
     public OSMUserOUTDTO updateUser(OSMUserOUTDTO userDTO, UUID id) throws Exception {
         long startTime = System.currentTimeMillis();
         String username = userDTO != null ? userDTO.getUsername() : "null";
@@ -294,6 +298,8 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
         }
     }
 
+    // Fixed as part of TICKET-001: Make password reset atomic and roll back if email delivery fails
+    @Transactional(rollbackFor = Exception.class)
     public OSMUserOUTDTO resetPassword(String identifier) throws Exception {
         long startTime = System.currentTimeMillis();
         OSMLogger.logMethodEntry(this.getClass(), "resetPassword", "Password reset request for identifier: " + identifier);
@@ -564,6 +570,35 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
             throw e;
         }
     }
+    public List<OSMUserDTO> findByRole(String roleName) {
+        UUID tenantId = TenantContext.getCurrentTenant();
+        List<OSMUser> users = userRepository.findByRoleNameAndTenant(roleName, tenantId);
+        return users.stream()
+                .map(user -> modelMapper.map(user, OSMUserDTO.class))
+                .toList();
+    }
+
+    public List<AssignableUserDTO> findAssignableUsersByPermissionIncludingAdmins(OSMModule module, String entity, String permissionName) {
+        UUID tenantId = TenantContext.getCurrentTenant();
+        List<OSMUser> users = userRepository.findAssignableUsersByPermissionOrAdmin(tenantId, module, entity, permissionName);
+
+        return users.stream().map(user -> {
+            AssignableUserDTO dto = new AssignableUserDTO();
+            dto.setId(user.getId());
+            dto.setUsername(user.getUsername());
+            dto.setFirstName(user.getFirstName());
+            dto.setLastName(user.getLastName());
+            dto.setRoleName(user.getRole() != null ? user.getRole().getRoleName() : null);
+            dto.setOneSignalPlayerId(user.getOneSignalPlayerId());
+
+            String firstName = user.getFirstName() != null ? user.getFirstName().trim() : "";
+            String lastName = user.getLastName() != null ? user.getLastName().trim() : "";
+            String fullName = (firstName + " " + lastName).trim();
+            dto.setDisplayName(!fullName.isEmpty() ? fullName : user.getUsername());
+
+            return dto;
+        }).toList();
+    }
 
     @Override
     public Set<Action> actionsMapping(OSMUser user) {
@@ -573,6 +608,27 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
             actions.addAll(Set.of(Action.UPDATE, Action.DELETE));
         }
         return actions;
+    }
+
+
+    @Transactional
+    public void updateOneSignalPlayerId(String userIdOrUsername, String playerId) {
+        // Chercher par UUID d'abord, puis par username en fallback
+        OSMUser user = null;
+        try {
+            UUID uuid = UUID.fromString(userIdOrUsername);
+            user = userRepository.findById(uuid).orElse(null);
+        } catch (IllegalArgumentException ignored) {}
+
+        if (user == null) {
+            user = userRepository.findByUsername(userIdOrUsername)
+                    .orElseThrow(() -> new RuntimeException("User not found: " + userIdOrUsername));
+        }
+
+        user.setOneSignalPlayerId(playerId);
+        userRepository.save(user);
+        OSMLogger.logSecurityEvent(this.getClass(), "PLAYER_ID_UPDATED",
+                "OneSignal Player ID updated for user: " + userIdOrUsername);
     }
 
 }

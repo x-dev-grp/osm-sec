@@ -15,6 +15,8 @@ public class OSMUserDTO extends BaseDto<OSMUser> {
     private boolean isLocked;
     private ConfirmationMethod confirmationMethod;
     private boolean isNewUser;
+    private String oneSignalPlayerId;
+
 
     public boolean isNewUser() {
         return isNewUser;
@@ -94,5 +96,13 @@ public class OSMUserDTO extends BaseDto<OSMUser> {
 
     public void setLastName(String lastName) {
         this.lastName = lastName;
+    }
+
+    public String getOneSignalPlayerId() {
+        return oneSignalPlayerId;
+    }
+
+    public void setOneSignalPlayerId(String oneSignalPlayerId) {
+        this.oneSignalPlayerId = oneSignalPlayerId;
     }
 }

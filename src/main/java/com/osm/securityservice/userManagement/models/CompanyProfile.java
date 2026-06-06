@@ -51,6 +51,18 @@ public class CompanyProfile extends BaseEntity implements Serializable {
     private String postalCode;
    
     private String governorate;
+
+    @Column(name = "campaign_start_month")
+    private Integer campaignStartMonth = 9;
+
+    @Column(name = "campaign_start_day")
+    private Integer campaignStartDay = 1;
+
+    @Column(name = "campaign_end_month")
+    private Integer campaignEndMonth = 4;
+
+    @Column(name = "campaign_end_day")
+    private Integer campaignEndDay = 30;
     /**
      * Logo binary data, max ~200KB enforced by service/controller
      */
@@ -182,6 +194,38 @@ public class CompanyProfile extends BaseEntity implements Serializable {
 
     public void setGovernorate(String governorate) {
         this.governorate = governorate;
+    }
+
+    public Integer getCampaignStartMonth() {
+        return campaignStartMonth;
+    }
+
+    public void setCampaignStartMonth(Integer campaignStartMonth) {
+        this.campaignStartMonth = campaignStartMonth;
+    }
+
+    public Integer getCampaignStartDay() {
+        return campaignStartDay;
+    }
+
+    public void setCampaignStartDay(Integer campaignStartDay) {
+        this.campaignStartDay = campaignStartDay;
+    }
+
+    public Integer getCampaignEndMonth() {
+        return campaignEndMonth;
+    }
+
+    public void setCampaignEndMonth(Integer campaignEndMonth) {
+        this.campaignEndMonth = campaignEndMonth;
+    }
+
+    public Integer getCampaignEndDay() {
+        return campaignEndDay;
+    }
+
+    public void setCampaignEndDay(Integer campaignEndDay) {
+        this.campaignEndDay = campaignEndDay;
     }
 
 

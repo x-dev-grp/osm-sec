@@ -1,25 +1,34 @@
-# syntax=docker/dockerfile:1.4
-
 ########## BUILD ##########
 FROM maven:3.9.8-eclipse-temurin-21 AS build
 WORKDIR /app
 
-# 1) cache deps
-COPY pom.xml .
-RUN --mount=type=secret,id=maven_settings,required \
-    --mount=type=cache,target=/root/.m2 \
+ARG MAVEN_USERNAME
+ARG MAVEN_TOKEN
+
+# 1) write settings.xml with GitHub Packages credentials
+RUN --mount=type=cache,id=maven_cache,target=/root/.m2 \
     set -eux; \
     mkdir -p /root/.m2; \
-    install -m 600 /run/secrets/maven_settings /root/.m2/settings.xml; \
-    mvn -B -s /root/.m2/settings.xml -DskipTests dependency:go-offline
+    printf '<?xml version="1.0" encoding="UTF-8"?>\n\
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">\n\
+  <servers>\n\
+    <server>\n\
+      <id>github</id>\n\
+      <username>%s</username>\n\
+      <password>%s</password>\n\
+    </server>\n\
+  </servers>\n\
+</settings>\n' "${MAVEN_USERNAME}" "${MAVEN_TOKEN}" > /root/.m2/settings.xml; \
+    chmod 600 /root/.m2/settings.xml
+
+# 2) cache deps
+COPY pom.xml .
+RUN --mount=type=cache,id=maven_cache,target=/root/.m2 \
+    mvn -B -DskipTests dependency:go-offline
 
 COPY src ./src
-RUN --mount=type=secret,id=maven_settings,required \
-    --mount=type=cache,target=/root/.m2 \
-    set -eux; \
-    mkdir -p /root/.m2; \
-    install -m 600 /run/secrets/maven_settings /root/.m2/settings.xml; \
-    mvn -B -s /root/.m2/settings.xml -DskipTests clean package
+RUN --mount=type=cache,id=maven_cache,target=/root/.m2 \
+    mvn -B -DskipTests clean package
 
 ########## RUNTIME ##########
 FROM eclipse-temurin:21-jre
@@ -35,3 +44,4 @@ ENV JAVA_TOOL_OPTIONS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75" \
 EXPOSE ${SERVICE_PORT}
 USER appuser
 ENTRYPOINT ["java","-jar","/app/app.jar"]
+
