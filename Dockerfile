@@ -6,7 +6,7 @@ ARG MAVEN_USERNAME
 ARG MAVEN_TOKEN
 
 # 1) write settings.xml with GitHub Packages credentials
-RUN --mount=type=cache,id=maven_cache,target=/root/.m2 \
+RUN --mount=type=cache,id=s/cff44870-2016-419c-b899-f24a73b82b34-/root/.m2,target=/root/.m2 \
     set -eux; \
     mkdir -p /root/.m2; \
     printf '<?xml version="1.0" encoding="UTF-8"?>\n\
@@ -23,11 +23,11 @@ RUN --mount=type=cache,id=maven_cache,target=/root/.m2 \
 
 # 2) cache deps
 COPY pom.xml .
-RUN --mount=type=cache,id=maven_cache,target=/root/.m2 \
+RUN --mount=type=cache,id=s/cff44870-2016-419c-b899-f24a73b82b34-/root/.m2,target=/root/.m2 \
     mvn -B -DskipTests dependency:go-offline
 
 COPY src ./src
-RUN --mount=type=cache,id=maven_cache,target=/root/.m2 \
+RUN --mount=type=cache,id=s/cff44870-2016-419c-b899-f24a73b82b34-/root/.m2,target=/root/.m2 \
     mvn -B -DskipTests clean package
 
 ########## RUNTIME ##########
