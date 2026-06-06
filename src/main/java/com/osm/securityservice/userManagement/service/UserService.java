@@ -589,6 +589,7 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
             dto.setFirstName(user.getFirstName());
             dto.setLastName(user.getLastName());
             dto.setRoleName(user.getRole() != null ? user.getRole().getRoleName() : null);
+            dto.setOneSignalPlayerId(user.getOneSignalPlayerId());
 
             String firstName = user.getFirstName() != null ? user.getFirstName().trim() : "";
             String lastName = user.getLastName() != null ? user.getLastName().trim() : "";

@@ -9,6 +9,7 @@ public class AssignableUserDTO {
     private String lastName;
     private String displayName;
     private String roleName;
+    private String oneSignalPlayerId;
 
     public UUID getId() {
         return id;
@@ -56,5 +57,13 @@ public class AssignableUserDTO {
 
     public void setRoleName(String roleName) {
         this.roleName = roleName;
+    }
+
+    public String getOneSignalPlayerId() {
+        return oneSignalPlayerId;
+    }
+
+    public void setOneSignalPlayerId(String oneSignalPlayerId) {
+        this.oneSignalPlayerId = oneSignalPlayerId;
     }
 }
