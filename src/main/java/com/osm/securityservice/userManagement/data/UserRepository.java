@@ -15,17 +15,28 @@ import java.util.UUID;
 public interface UserRepository extends BaseRepository<OSMUser> {
     Optional<OSMUser> findByUsername(String username);
 
+    Optional<OSMUser> findByUsernameAndIsDeletedFalse(String username);
+
+    @Query("SELECT u FROM OSMUser u WHERE (u.phoneNumber = :input OR LOWER(u.email) = LOWER(:input)) AND COALESCE(u.isDeleted, FALSE) = FALSE")
+    Optional<OSMUser> findByPhoneOrEmailIgnoreCaseAndIsDeletedFalse(@Param("input") String input);
+
     @Query("SELECT u FROM OSMUser u WHERE u.phoneNumber = :input OR LOWER(u.email) = LOWER(:input)")
     Optional<OSMUser> findByPhoneOrEmailIgnoreCase(@Param("input") String input);
 
     Optional<OSMUser> findByEmailIgnoreCase(String email);
 
+    Optional<OSMUser> findByEmailIgnoreCaseAndIsDeletedFalse(String email);
+
     Optional<OSMUser> findByPhoneNumber(String phoneNumber);
+
+    Optional<OSMUser> findByPhoneNumberAndIsDeletedFalse(String phoneNumber);
+
+    List<OSMUser> findByRoleRoleNameAndTenantIdAndIsDeletedFalse(String roleName, UUID tenantId);
 
     List<OSMUser> findByRoleRoleNameAndTenantId(String roleName, UUID tenantId);
 
     @Query("SELECT u FROM OSMUser u JOIN u.role r WHERE r.roleName = :roleName " +
-            "AND (u.tenantId = :tenantId OR u.tenantId IS NULL)")
+            "AND (u.tenantId = :tenantId OR u.tenantId IS NULL) AND COALESCE(u.isDeleted, FALSE) = FALSE")
     List<OSMUser> findByRoleNameAndTenant(@Param("roleName") String roleName,
                                           @Param("tenantId") UUID tenantId);
 
@@ -35,6 +46,7 @@ public interface UserRepository extends BaseRepository<OSMUser> {
             JOIN u.role r
             LEFT JOIN r.permissions p
             WHERE (u.tenantId = :tenantId OR u.tenantId IS NULL)
+              AND COALESCE(u.isDeleted, FALSE) = FALSE
               AND (
                    (p.module = :module
                     AND UPPER(p.entity) = UPPER(:entity)

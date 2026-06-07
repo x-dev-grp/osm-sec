@@ -72,7 +72,7 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
         OSMLogger.logMethodEntry(this.getClass(), "loadUserByUsername", "Loading user details for username: " + username);
 
         try {
-            UserDetails userDetails = userRepository.findByUsername(username)
+            UserDetails userDetails = userRepository.findByUsernameAndIsDeletedFalse(username)
                     .orElseThrow(() -> new UsernameNotFoundException(username));
 
             OSMLogger.logMethodExit(this.getClass(), "loadUserByUsername", "User details loaded successfully for: " + username);
@@ -140,7 +140,7 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
 
             validateUserDTO(userDTO);
 
-            OSMUser user = repository.findById(id)
+            OSMUser user = repository.findByIdAndIsDeletedFalse(id)
                     .orElseThrow(() -> new UsernameNotFoundException(id.toString()));
 
             checkUserToUpdate(user, userDTO.getUsername(), userDTO.getEmail(), userDTO.getPhoneNumber());
@@ -148,7 +148,7 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
             boolean usernameChanged = !Objects.equals(userDTO.getUsername(), user.getUsername());
             boolean emailChanged = userDTO.getEmail() != null && !Objects.equals(userDTO.getEmail(), user.getEmail());
             boolean phoneChanged = userDTO.getPhoneNumber() != null && !Objects.equals(userDTO.getPhoneNumber(), user.getPhoneNumber());
-            Role newRole = roleRepository.findById(userDTO.getRole().getId()).orElse(null);
+            Role newRole = roleRepository.findByIdAndIsDeletedFalse(userDTO.getRole().getId()).orElse(null);
             user.setLocked(userDTO.isLocked());
             user.setFirstName(userDTO.getFirstName());
             user.setLastName(userDTO.getLastName());
@@ -190,17 +190,17 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
     }
 
     private void checkExistUser(String username, String email, String phoneNumber) {
-        if (username != null && userRepository.findByUsername(username).isPresent()) {
+        if (username != null && userRepository.findByUsernameAndIsDeletedFalse(username).isPresent()) {
             OSMLogger.logSecurityEvent(this.getClass(), "USERNAME_ALREADY_EXISTS",
                     "Username already exists: " + username);
             throw new IllegalArgumentException("Username is already in use");
         }
-        if (email != null && userRepository.findByEmailIgnoreCase(email).isPresent()) {
+        if (email != null && userRepository.findByEmailIgnoreCaseAndIsDeletedFalse(email).isPresent()) {
             OSMLogger.logSecurityEvent(this.getClass(), "EMAIL_ALREADY_EXISTS",
                     "Email already exists: " + email);
             throw new IllegalArgumentException("Email is already in use");
         }
-        if (phoneNumber != null && userRepository.findByPhoneNumber(phoneNumber).isPresent()) {
+        if (phoneNumber != null && userRepository.findByPhoneNumberAndIsDeletedFalse(phoneNumber).isPresent()) {
             OSMLogger.logSecurityEvent(this.getClass(), "PHONE_ALREADY_EXISTS",
                     "Phone number already exists: " + phoneNumber);
             throw new IllegalArgumentException("Phone number is already in use");
@@ -208,17 +208,26 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
     }
 
     private void checkUserToUpdate(OSMUser user, String username, String email, String phoneNumber) {
-        if (((user.getUsername() != null && username != null && !user.getUsername().equals(username)) || (user.getUsername() == null && username != null)) && userRepository.findByUsername(username).isPresent()) {
+        if (((user.getUsername() != null && username != null && !user.getUsername().equals(username)) || (user.getUsername() == null && username != null))
+                && userRepository.findByUsernameAndIsDeletedFalse(username)
+                .filter(existing -> !existing.getId().equals(user.getId()))
+                .isPresent()) {
             OSMLogger.logSecurityEvent(this.getClass(), "USERNAME_ALREADY_EXISTS_UPDATE",
                     "Username already exists during update: " + username);
             throw new IllegalArgumentException("Username is already in use");
         }
-        if (((user.getEmail() != null && email != null && !user.getEmail().equals(email)) || (user.getEmail() == null && email != null)) && userRepository.findByEmailIgnoreCase(email).isPresent()) {
+        if (((user.getEmail() != null && email != null && !user.getEmail().equals(email)) || (user.getEmail() == null && email != null))
+                && userRepository.findByEmailIgnoreCaseAndIsDeletedFalse(email)
+                .filter(existing -> !existing.getId().equals(user.getId()))
+                .isPresent()) {
             OSMLogger.logSecurityEvent(this.getClass(), "EMAIL_ALREADY_EXISTS_UPDATE",
                     "Email already exists during update: " + email);
             throw new IllegalArgumentException("Email is already in use");
         }
-        if (((user.getPhoneNumber() != null && phoneNumber != null && !user.getPhoneNumber().equals(phoneNumber)) || (user.getPhoneNumber() == null && phoneNumber != null)) && userRepository.findByPhoneNumber(phoneNumber).isPresent()) {
+        if (((user.getPhoneNumber() != null && phoneNumber != null && !user.getPhoneNumber().equals(phoneNumber)) || (user.getPhoneNumber() == null && phoneNumber != null))
+                && userRepository.findByPhoneNumberAndIsDeletedFalse(phoneNumber)
+                .filter(existing -> !existing.getId().equals(user.getId()))
+                .isPresent()) {
             OSMLogger.logSecurityEvent(this.getClass(), "PHONE_ALREADY_EXISTS_UPDATE",
                     "Phone number already exists during update: " + phoneNumber);
             throw new IllegalArgumentException("Phone number is already in use");
@@ -305,7 +314,7 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
         OSMLogger.logMethodEntry(this.getClass(), "resetPassword", "Password reset request for identifier: " + identifier);
 
         try {
-            OSMUser user = userRepository.findByPhoneOrEmailIgnoreCase(identifier).orElse(null);
+            OSMUser user = userRepository.findByPhoneOrEmailIgnoreCaseAndIsDeletedFalse(identifier).orElse(null);
             if (user != null) {
                 if (user.isLocked()) {
                     OSMLogger.logSecurityEvent(this.getClass(), "PASSWORD_RESET_ACCOUNT_LOCKED",
@@ -394,7 +403,7 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
                 "Validating reset code for user: " + userId + ", Code: " + (code != null ? code.substring(0, Math.min(3, code.length())) + "..." : "null"));
 
         try {
-            OSMUser user = userRepository.findById(userId).orElse(null);
+            OSMUser user = userRepository.findByIdAndIsDeletedFalse(userId).orElse(null);
             if (user == null) {
                 OSMLogger.logSecurityEvent(this.getClass(), "RESET_CODE_VALIDATION_USER_NOT_FOUND",
                         "Reset code validation failed - User not found: " + userId);
@@ -433,7 +442,7 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
         OSMLogger.logMethodEntry(this.getClass(), "updatePassword", "Updating password for user: " + userId);
 
         try {
-            OSMUser user = userRepository.findById(userId).orElse(null);
+            OSMUser user = userRepository.findByIdAndIsDeletedFalse(userId).orElse(null);
             if (user == null) {
                 OSMLogger.logSecurityEvent(this.getClass(), "PASSWORD_UPDATE_USER_NOT_FOUND",
                         "Password update failed - User not found: " + userId);
@@ -553,7 +562,7 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
         OSMLogger.logMethodEntry(this.getClass(), "findByRoleName", "Finding users by role name: " + roleName);
 
         try {
-            List<OSMUserDTO> users = userRepository.findByRoleRoleNameAndTenantId(roleName, TenantContext.getCurrentTenant()).stream().map(
+            List<OSMUserDTO> users = userRepository.findByRoleRoleNameAndTenantIdAndIsDeletedFalse(roleName, TenantContext.getCurrentTenant()).stream().map(
                     user -> modelMapper.map(user, OSMUserDTO.class)
             ).toList();
 
@@ -617,11 +626,11 @@ public class UserService extends BaseServiceImpl<OSMUser, OSMUserDTO, OSMUserOUT
         OSMUser user = null;
         try {
             UUID uuid = UUID.fromString(userIdOrUsername);
-            user = userRepository.findById(uuid).orElse(null);
+            user = userRepository.findByIdAndIsDeletedFalse(uuid).orElse(null);
         } catch (IllegalArgumentException ignored) {}
 
         if (user == null) {
-            user = userRepository.findByUsername(userIdOrUsername)
+            user = userRepository.findByUsernameAndIsDeletedFalse(userIdOrUsername)
                     .orElseThrow(() -> new RuntimeException("User not found: " + userIdOrUsername));
         }
 
