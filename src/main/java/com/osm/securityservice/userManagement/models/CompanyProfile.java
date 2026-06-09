@@ -3,10 +3,7 @@ package com.osm.securityservice.userManagement.models;
 import com.xdev.xdevbase.entities.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
-import jakarta.persistence.Basic;
-import jakarta.persistence.FetchType;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -66,8 +63,6 @@ public class CompanyProfile extends BaseEntity implements Serializable {
     /**
      * Logo binary data, max ~200KB enforced by service/controller
      */
-    @Lob
-    @Basic(fetch = FetchType.EAGER)
     @Column(columnDefinition = "TEXT")
     private String logoData;
 
